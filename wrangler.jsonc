@@ -1,0 +1,11 @@
+// Cloudflare Workers config — serves the static export in ./out
+{
+  "name": "quanlychitieu",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./out",
+    // /transactions -> out/transactions.html, unknown paths -> out/404.html
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}
