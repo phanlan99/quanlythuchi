@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { useAuth } from "@/context/AuthProvider";
 import { useOverlay } from "@/hooks/use-overlay";
-import { DEFAULT_NAV_ITEMS, Icons, type NavItem } from "./nav-config";
+import { ADMIN_NAV_ITEM, DEFAULT_NAV_ITEMS, Icons, type NavItem } from "./nav-config";
+import { UserCard } from "./UserCard";
 
 export interface SidebarProps {
   /** Menu entries. Defaults to the app's main navigation. */
@@ -31,16 +33,20 @@ function isActive(pathname: string, href: string): boolean {
  * - Mobile: top bar with a menu button that opens a drawer.
  */
 export function Sidebar({
-  items = DEFAULT_NAV_ITEMS,
+  items: pageItems = DEFAULT_NAV_ITEMS,
   title = "Quản lý chi tiêu",
-  subtitle = "Demo",
+  subtitle = "Tài chính cá nhân",
   footer,
   collapsible = true,
   defaultCollapsed = false,
 }: SidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Admins always get the user-management entry.
+  const items = user?.role === "admin" ? [...pageItems, ADMIN_NAV_ITEM] : pageItems;
 
   // Close the mobile drawer with Escape and lock body scroll while open.
   useOverlay(mobileOpen, () => setMobileOpen(false));
@@ -86,9 +92,14 @@ export function Sidebar({
 
   const brand = (isCollapsed: boolean) => (
     <div className="flex items-center gap-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-lg text-white">
+      <Link
+        href="/"
+        aria-label="Trang giới thiệu"
+        title="Trang giới thiệu"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-lg text-white"
+      >
         ₫
-      </span>
+      </Link>
       {!isCollapsed && (
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{title}</p>
@@ -146,6 +157,9 @@ export function Sidebar({
             {footer && (
               <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">{footer}</div>
             )}
+            <div className="border-t border-zinc-200 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:border-zinc-800">
+              <UserCard onNavigate={() => setMobileOpen(false)} />
+            </div>
           </aside>
         </div>
       )}
@@ -169,6 +183,10 @@ export function Sidebar({
         {footer && !collapsed && (
           <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">{footer}</div>
         )}
+
+        <div className={`border-t border-zinc-200 dark:border-zinc-800 ${collapsed ? "" : "p-3"}`}>
+          <UserCard compact={collapsed} />
+        </div>
 
         {collapsible && (
           <button

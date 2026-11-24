@@ -2,7 +2,8 @@
 
 import { createContext, use, useEffect, useReducer, useState, type ReactNode } from "react";
 import type { PersistedAction, RemoteState } from "@/lib/actions";
-import { fetchRemoteState, sendAction } from "@/lib/api";
+import { api, sendAction } from "@/lib/api";
+import { useAuth } from "./AuthProvider";
 import {
   DEMO_BUDGET_MONTHS,
   DEMO_BUDGETS,
@@ -12,22 +13,23 @@ import {
 import type { Budget, Category, TransactionInput } from "@/lib/types";
 
 /**
- * App data store.
+ * App data store — holds the SIGNED-IN USER's data.
  *
- * - On mount it loads everything from Cloudflare D1 (GET /api/state).
+ * - Once signed in it loads that user's data from Cloudflare D1 (GET /api/state).
  * - Every change is applied locally first (instant UI), then sent to D1
  *   (POST /api/actions) — see `commit` below.
- * - If the API isn't reachable (e.g. `next dev`), it falls back to in-memory
- *   demo data and nothing is saved ("demo" status).
+ * - Switching user remounts the store, so one user's data never shows for another.
+ * - Without an API (e.g. `next dev`) it runs on in-memory demo data ("demo").
  */
 
-export type SyncStatus = "loading" | "online" | "demo";
+export type SyncStatus = "off" | "loading" | "online" | "error" | "demo";
+type Mode = "off" | "online" | "demo";
 
 interface ExpenseState extends RemoteState {
   status: SyncStatus;
 }
 
-type Action = PersistedAction | { type: "load"; data: RemoteState; status: SyncStatus };
+type Action = PersistedAction | { type: "load"; data: RemoteState } | { type: "loadFailed" };
 
 const DEMO_STATE: RemoteState = {
   transactions: DEMO_TRANSACTIONS,
@@ -36,14 +38,17 @@ const DEMO_STATE: RemoteState = {
   categories: DEMO_CATEGORIES,
 };
 
-// Prerendered HTML starts empty (no flash of demo numbers before real data arrives).
-const initialState: ExpenseState = {
+const EMPTY_STATE: RemoteState = {
   transactions: [],
   budgets: [],
   budgetMonths: [],
   categories: DEMO_CATEGORIES,
-  status: "loading",
 };
+
+function initState(mode: Mode): ExpenseState {
+  if (mode === "demo") return { ...DEMO_STATE, status: "demo" };
+  return { ...EMPTY_STATE, status: mode === "online" ? "loading" : "off" };
+}
 
 const sameBudget = (b: Budget, month: string, categoryId: string) =>
   b.month === month && b.categoryId === categoryId;
@@ -51,7 +56,9 @@ const sameBudget = (b: Budget, month: string, categoryId: string) =>
 function reducer(state: ExpenseState, action: Action): ExpenseState {
   switch (action.type) {
     case "load":
-      return { ...action.data, status: action.status };
+      return { ...action.data, status: "online" };
+    case "loadFailed":
+      return { ...state, status: "error" };
     case "add":
       return { ...state, transactions: [action.transaction, ...state.transactions] };
     case "update":
@@ -123,24 +130,38 @@ function createId(): string {
     : `id-${Date.now()}-${idCounter}`;
 }
 
+/** Picks the data mode from the auth state and remounts the store per user. */
 export function ExpenseProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const { status, user } = useAuth();
+  const mode: Mode =
+    status === "demo"
+      ? "demo"
+      : status === "authenticated" && user && !user.mustChangePassword
+        ? "online"
+        : "off";
+
+  return (
+    <ExpenseStore key={`${mode}:${user?.id ?? ""}`} mode={mode}>
+      {children}
+    </ExpenseStore>
+  );
+}
+
+function ExpenseStore({ mode, children }: { mode: Mode; children: ReactNode }) {
+  const [state, dispatch] = useReducer(reducer, mode, initState);
   const [syncError, setSyncError] = useState(false);
 
   useEffect(() => {
+    if (mode !== "online") return;
     let cancelled = false;
-    fetchRemoteState().then((remote) => {
-      if (cancelled) return;
-      dispatch(
-        remote
-          ? { type: "load", data: remote, status: "online" }
-          : { type: "load", data: DEMO_STATE, status: "demo" },
-      );
-    });
+    api
+      .state()
+      .then((data) => !cancelled && dispatch({ type: "load", data }))
+      .catch(() => !cancelled && dispatch({ type: "loadFailed" }));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [mode]);
 
   /** Apply locally (instant), then persist to D1 when connected. */
   function commit(action: PersistedAction) {

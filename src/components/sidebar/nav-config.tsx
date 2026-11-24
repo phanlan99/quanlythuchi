@@ -85,6 +85,60 @@ export const Icons = {
       <path d="M4 20h4L19 9l-4-4L4 16v4z" />
     </svg>
   ),
+  users: (
+    <svg {...iconProps}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c.6-3.4 3.2-5.5 6.5-5.5s5.9 2.1 6.5 5.5" />
+      <path d="M16 4.6a3.5 3.5 0 010 6.8M18 14.8c1.9.8 3.1 2.6 3.5 5.2" />
+    </svg>
+  ),
+  logout: (
+    <svg {...iconProps} width={18} height={18}>
+      <path d="M14 4h4a2 2 0 012 2v12a2 2 0 01-2 2h-4" />
+      <path d="M10 16l-4-4 4-4M6 12h10" />
+    </svg>
+  ),
+  key: (
+    <svg {...iconProps} width={16} height={16}>
+      <circle cx="8" cy="15" r="4" />
+      <path d="M11 12l9-9M17 6l3 3M15 8l2 2" />
+    </svg>
+  ),
+  lock: (
+    <svg {...iconProps} width={16} height={16}>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 018 0v4" />
+    </svg>
+  ),
+  unlock: (
+    <svg {...iconProps} width={16} height={16}>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 017.5-2" />
+    </svg>
+  ),
+  search: (
+    <svg {...iconProps}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M20 20l-4.2-4.2" />
+    </svg>
+  ),
+  login: (
+    <svg {...iconProps}>
+      <path d="M10 4H6a2 2 0 00-2 2v12a2 2 0 002 2h4" />
+      <path d="M14 16l4-4-4-4M18 12H8" />
+    </svg>
+  ),
+  account: (
+    <svg {...iconProps} width={18} height={18}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 20c.8-3.6 3.8-6 7.5-6s6.7 2.4 7.5 6" />
+    </svg>
+  ),
+  chevronDown: (
+    <svg {...iconProps} width={16} height={16}>
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  ),
   chevronLeft: (
     <svg {...iconProps}>
       <path d="M15 6l-6 6 6 6" />
@@ -99,7 +153,10 @@ export const Icons = {
 
 /** Default menu used when a page doesn't pass its own `items`. */
 export const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Tổng quan", icon: Icons.dashboard },
+  { href: "/dashboard", label: "Tổng quan", icon: Icons.dashboard },
   { href: "/transactions", label: "Giao dịch", icon: Icons.transactions },
   { href: "/budgets", label: "Ngân sách", icon: Icons.budget },
 ];
+
+/** Added automatically to the sidebar for admins. */
+export const ADMIN_NAV_ITEM: NavItem = { href: "/admin", label: "Người dùng", icon: Icons.users };

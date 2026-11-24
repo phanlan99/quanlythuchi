@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AuthProvider } from "@/context/AuthProvider";
 import { ExpenseProvider } from "@/context/ExpenseProvider";
 import "./globals.css";
 
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 // The sidebar is intentionally NOT here — pages opt in via <PageWithSidebar>.
-// ExpenseProvider only holds in-memory demo data so it survives client navigation.
+// AuthProvider = who is signed in; ExpenseProvider = that user's data (survives client navigation).
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -27,7 +28,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <ExpenseProvider>{children}</ExpenseProvider>
+        <AuthProvider>
+          <ExpenseProvider>{children}</ExpenseProvider>
+        </AuthProvider>
       </body>
     </html>
   );

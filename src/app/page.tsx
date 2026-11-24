@@ -1,10 +1,6 @@
-import { PageWithSidebar } from "@/components/layout/PageWithSidebar";
-import { DashboardView } from "@/components/dashboard/DashboardView";
+import { LandingPage } from "@/components/landing/LandingPage";
 
+/** Public introduction page. The dashboard lives at /dashboard. */
 export default function HomePage() {
-  return (
-    <PageWithSidebar>
-      <DashboardView />
-    </PageWithSidebar>
-  );
+  return <LandingPage />;
 }

@@ -1,34 +1,73 @@
 import type { PersistedAction, RemoteState } from "./actions";
+import type { AdminUserAction, ProfileInput, PublicUser, RegisterInput, ResetRequest } from "./users";
 
-/**
- * Load everything from D1. Returns `null` when the API isn't available
- * (e.g. under `next dev`, where only the static app runs) — the caller then
- * falls back to demo data.
- */
-export async function fetchRemoteState(): Promise<RemoteState | null> {
-  try {
-    const res = await fetch("/api/state", { cache: "no-store" });
-    const isJson = res.headers.get("content-type")?.includes("application/json");
-    if (!res.ok || !isJson) return null;
-    return (await res.json()) as RemoteState;
-  } catch {
-    return null;
+/** The server answered with an error (message is user-facing Vietnamese text). */
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
   }
 }
+
+/**
+ * The API isn't there at all (e.g. `next dev`, where only the static app runs).
+ * The app then switches to demo mode.
+ */
+export class ApiUnavailableError extends Error {}
+
+async function request<T>(path: string, body?: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method: body === undefined ? "GET" : "POST",
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+  } catch {
+    throw new ApiUnavailableError("Không kết nối được máy chủ");
+  }
+  if (!res.headers.get("content-type")?.includes("application/json")) {
+    throw new ApiUnavailableError("API không khả dụng");
+  }
+  const data = (await res.json()) as { error?: string; code?: string };
+  if (!res.ok) throw new ApiError(res.status, data.error ?? `Lỗi ${res.status}`, data.code);
+  return data as T;
+}
+
+type UserResponse = { user: PublicUser };
+
+export const api = {
+  me: () => request<UserResponse>("/api/auth/me"),
+  login: (username: string, password: string) =>
+    request<UserResponse>("/api/auth/login", { username, password }),
+  register: (input: RegisterInput) => request<UserResponse>("/api/auth/register", input),
+  logout: () => request<{ ok: true }>("/api/auth/logout", {}),
+  forgotPassword: (username: string, phone: string) =>
+    request<{ ok: true }>("/api/auth/forgot", { username, phone }),
+
+  updateProfile: (input: ProfileInput) => request<UserResponse>("/api/account/profile", input),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<UserResponse>("/api/account/password", { currentPassword, newPassword }),
+
+  state: () => request<RemoteState>("/api/state"),
+
+  adminUsers: () =>
+    request<{ users: PublicUser[]; resetRequests: ResetRequest[] }>("/api/admin/users"),
+  adminAction: (action: AdminUserAction) =>
+    request<{ ok: true; tempPassword?: string }>("/api/admin/users", action),
+};
 
 // Actions are sent strictly one after another, so dependent writes
 // (e.g. create a category, then budget it) reach D1 in order.
 let queue: Promise<unknown> = Promise.resolve();
 
 export function sendAction(action: PersistedAction): Promise<void> {
-  const request = queue.then(async () => {
-    const res = await fetch("/api/actions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(action),
-    });
-    if (!res.ok) throw new Error(`Saving failed (${res.status})`);
-  });
-  queue = request.catch(() => {}); // a failure must not block later writes
-  return request;
+  const sent = queue.then(() => request<{ ok: true }>("/api/actions", action)).then(() => {});
+  queue = sent.catch(() => {}); // a failure must not block later writes
+  return sent;
 }

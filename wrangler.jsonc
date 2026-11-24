@@ -19,15 +19,8 @@
 	},
 	"d1_databases": [
 		{
+			// The Worker code reads env.DB. Tables are created automatically (worker/schema.ts).
 			"binding": "DB",
-			"database_name": "quanlychitieu-db"
-			// No "database_id": `wrangler deploy` creates the database automatically
-			// on the first deploy and links it. If your wrangler version can't, run
-			//   npx wrangler d1 create quanlychitieu-db
-			// once and paste the printed id here as "database_id".
-		},
-		{
-			"binding": "quanlychitieu_db",
 			"database_name": "quanlychitieu-db",
 			"database_id": "d9ede277-dec9-494c-9453-ad621452e13a"
 		}
