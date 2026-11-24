@@ -219,6 +219,57 @@ export function getWalletBalances(wallets: Wallet[], transactions: Transaction[]
   });
 }
 
+export interface WalletEntry {
+  transaction: Transaction;
+  /** Wallet balance right after this transaction. */
+  balanceAfter: number;
+}
+
+/**
+ * One wallet's transactions, newest first, each with the running balance after it.
+ * Same-day order follows sortByDateDesc, so adjacent rows always add up.
+ */
+export function getWalletHistory(wallet: Wallet, transactions: Transaction[]): WalletEntry[] {
+  const own = sortByDateDesc(transactions.filter((t) => t.walletId === wallet.id));
+  const entries: WalletEntry[] = new Array(own.length);
+  let balance = wallet.openingBalance;
+  // Walk oldest -> newest to accumulate, filling the array from the end.
+  for (let i = own.length - 1; i >= 0; i--) {
+    const t = own[i];
+    balance += t.type === "income" ? t.amount : -t.amount;
+    entries[i] = { transaction: t, balanceAfter: balance };
+  }
+  return entries;
+}
+
+export interface WalletPeriod {
+  /** Balance at the start of the period. */
+  start: number;
+  income: number;
+  expense: number;
+  /** Balance at the end of the period (= start + income − expense). */
+  end: number;
+}
+
+/**
+ * Opening / closing balance and flows for `month` (YYYY-MM), or the wallet's
+ * whole life when month is "all". `history` comes from getWalletHistory.
+ */
+export function getWalletPeriod(
+  wallet: Wallet,
+  history: WalletEntry[],
+  month: string,
+): WalletPeriod {
+  const inPeriod =
+    month === "all" ? history : history.filter((e) => monthKey(e.transaction.date) === month);
+  const { income, expense } = summarize(inPeriod.map((e) => e.transaction));
+  // Newest entry on or before the period's last month = closing balance.
+  const last =
+    month === "all" ? history[0] : history.find((e) => monthKey(e.transaction.date) <= month);
+  const end = last?.balanceAfter ?? wallet.openingBalance;
+  return { start: end - income + expense, income, expense, end };
+}
+
 /**
  * Opening balance that makes the wallet show `currentBalance` today, given its
  * linked transactions. Used when the user types the real balance from their bank app.

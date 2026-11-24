@@ -79,6 +79,16 @@ export function StatCard({
   );
 }
 
+/** Full amount on sm+, compact ("1,5tr") on phones. */
+export function Amount({ value }: { value: number }) {
+  return (
+    <>
+      <span className="sm:hidden">{formatCompactVND(value)}</span>
+      <span className="hidden sm:inline">{formatVND(value)}</span>
+    </>
+  );
+}
+
 export function ProgressBar({ percent, color }: { percent: number; color: string }) {
   const width = Math.min(Math.max(percent, 0), 100);
   return (

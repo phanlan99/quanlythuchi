@@ -12,6 +12,7 @@ import {
 import { formatCompactVND, formatVND } from "@/lib/format";
 import { Icons } from "@/components/sidebar/nav-config";
 import {
+  Amount,
   iconButtonClass,
   iconButtonDangerClass,
   stickyBarClass,
@@ -19,18 +20,9 @@ import {
 } from "@/components/ui";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
 import { WalletDialog, type WalletDraft } from "./WalletDialog";
+import { WalletHistory } from "./WalletHistory";
 
 const negativeText = "text-rose-600 dark:text-rose-400";
-
-/** Full amount on sm+, compact ("1,5tr") on phones. */
-function Amount({ value }: { value: number }) {
-  return (
-    <>
-      <span className="sm:hidden">{formatCompactVND(value)}</span>
-      <span className="hidden sm:inline">{formatVND(value)}</span>
-    </>
-  );
-}
 
 type DialogState = { mode: "new" } | { mode: "edit"; id: string } | null;
 
@@ -41,6 +33,8 @@ type DialogState = { mode: "new" } | { mode: "edit"; id: string } | null;
 export function WalletsPanel() {
   const { wallets, transactions, addWallet, updateWallet, removeWallet } = useExpenses();
   const [dialog, setDialog] = useState<DialogState>(null);
+  /** Wallet whose history is open (null = wallet list). */
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   const balances = getWalletBalances(wallets, transactions);
   const total = balances.reduce((s, b) => s + b.balance, 0);
@@ -52,6 +46,8 @@ export function WalletsPanel() {
   const unlinked = transactions.filter((t) => !t.walletId).length;
 
   const editing = dialog?.mode === "edit" ? balances.find((b) => b.wallet.id === dialog.id) : null;
+  // Falls back to the list if the wallet no longer exists.
+  const viewing = viewingId ? wallets.find((w) => w.id === viewingId) : undefined;
   const takenNames = wallets
     .filter((w) => w.id !== editing?.wallet.id)
     .map((w) => w.name.toLowerCase());
@@ -75,6 +71,33 @@ export function WalletsPanel() {
         : "";
     if (!window.confirm(`Xóa "${b.wallet.name}"?${linked}`)) return;
     removeWallet(b.wallet.id);
+  }
+
+  function openHistory(id: string | null) {
+    setViewingId(id);
+    window.scrollTo({ top: 0 });
+  }
+
+  const walletDialog = dialog && (dialog.mode === "new" || editing) && (
+    <WalletDialog
+      editing={editing}
+      takenNames={takenNames}
+      onClose={() => setDialog(null)}
+      onSave={handleSave}
+    />
+  );
+
+  if (viewing) {
+    return (
+      <>
+        <WalletHistory
+          wallet={viewing}
+          onBack={() => openHistory(null)}
+          onEditWallet={() => setDialog({ mode: "edit", id: viewing.id })}
+        />
+        {walletDialog}
+      </>
+    );
   }
 
   return (
@@ -156,6 +179,7 @@ export function WalletsPanel() {
               <WalletCard
                 key={b.wallet.id}
                 item={b}
+                onOpen={() => openHistory(b.wallet.id)}
                 onEdit={() => setDialog({ mode: "edit", id: b.wallet.id })}
                 onRemove={() => handleRemove(b)}
               />
@@ -187,24 +211,20 @@ export function WalletsPanel() {
         />
       )}
 
-      {dialog && (dialog.mode === "new" || editing) && (
-        <WalletDialog
-          editing={editing}
-          takenNames={takenNames}
-          onClose={() => setDialog(null)}
-          onSave={handleSave}
-        />
-      )}
+      {walletDialog}
     </>
   );
 }
 
 function WalletCard({
   item: b,
+  onOpen,
   onEdit,
   onRemove,
 }: {
   item: WalletBalance;
+  /** Open this wallet's transaction history. */
+  onOpen: () => void;
   onEdit: () => void;
   onRemove: () => void;
 }) {
@@ -243,22 +263,40 @@ function WalletCard({
         </button>
       </div>
 
-      <p
-        className={`mt-3 text-lg font-semibold tabular-nums ${b.balance < 0 ? negativeText : ""}`}
+      {/* Balance area opens the history */}
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Xem lịch sử giao dịch ${w.name}`}
+        className="-mx-2 -mb-2 mt-1 block w-[calc(100%+1rem)] rounded-lg px-2 pb-2 pt-2 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
       >
-        {formatVND(b.balance)}
-      </p>
+        <span
+          className={`block text-lg font-semibold tabular-nums ${b.balance < 0 ? negativeText : ""}`}
+        >
+          {formatVND(b.balance)}
+        </span>
 
-      <div className="mt-1 flex justify-between gap-2 text-xs tabular-nums text-zinc-500">
-        <span>{b.count} giao dịch</span>
-        {b.count > 0 && (
+        <span className="mt-1 flex justify-between gap-2 text-xs tabular-nums text-zinc-500">
           <span>
-            <span className="text-emerald-600 dark:text-emerald-400">+{formatCompactVND(b.income)}</span>
-            {" / "}
-            <span className="text-rose-600 dark:text-rose-400">−{formatCompactVND(b.expense)}</span>
+            {b.count > 0 ? (
+              <>
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  +{formatCompactVND(b.income)}
+                </span>
+                {" / "}
+                <span className="text-rose-600 dark:text-rose-400">
+                  −{formatCompactVND(b.expense)}
+                </span>
+              </>
+            ) : (
+              "Chưa có giao dịch"
+            )}
           </span>
-        )}
-      </div>
+          <span className="font-medium text-emerald-600 dark:text-emerald-400">
+            {b.count > 0 ? `${b.count} giao dịch →` : "Xem →"}
+          </span>
+        </span>
+      </button>
     </li>
   );
 }

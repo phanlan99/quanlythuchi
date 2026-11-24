@@ -16,6 +16,8 @@ import { inputClass } from "@/components/ui";
 interface TransactionFormProps {
   /** When set, the form edits this transaction instead of creating a new one. */
   editing?: Transaction | null;
+  /** Wallet preselected for a NEW transaction (e.g. when adding from a wallet's history). */
+  defaultWalletId?: string;
   onDone?: () => void;
 }
 
@@ -23,7 +25,7 @@ interface TransactionFormProps {
  * Create / edit form. Remount it with a different `key` to load another
  * transaction (see TransactionsView).
  */
-export function TransactionForm({ editing, onDone }: TransactionFormProps) {
+export function TransactionForm({ editing, defaultWalletId, onDone }: TransactionFormProps) {
   const { categories, wallets, transactions, addTransaction, updateTransaction } = useExpenses();
 
   const [type, setType] = useState<TransactionType>(editing?.type ?? "expense");
@@ -38,7 +40,7 @@ export function TransactionForm({ editing, onDone }: TransactionFormProps) {
   const [walletChoice, setWalletId] = useState<string | null>(
     editing ? (editing.walletId ?? "") : null,
   );
-  const walletId = walletChoice ?? wallets[0]?.id ?? "";
+  const walletId = walletChoice ?? defaultWalletId ?? wallets[0]?.id ?? "";
   const [errors, setErrors] = useState<ValidationErrors>({});
 
   const categoryOptions = categories.filter((c) => c.type === type);

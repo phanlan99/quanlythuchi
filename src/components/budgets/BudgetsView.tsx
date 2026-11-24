@@ -10,9 +10,10 @@ import {
   type BudgetStatus,
   type BudgetUsage,
 } from "@/lib/expense-utils";
-import { formatCompactVND, formatVND } from "@/lib/format";
+import { formatVND } from "@/lib/format";
 import { Icons } from "@/components/sidebar/nav-config";
 import {
+  Amount,
   MonthSelect,
   PageHeader,
   ProgressBar,
@@ -43,16 +44,6 @@ const CUSTOM_COLORS = ["#2a78d6", "#1baf7a", "#e87ba4", "#6250d6", "#eda100", "#
 
 /** "50.000" / "50,000" / "50000" -> 50000 */
 const parseAmount = (raw: string) => Number(raw.replace(/[.,\s]/g, ""));
-
-/** Full amount on sm+, compact ("1,5tr") on phones. */
-function Amount({ value }: { value: number }) {
-  return (
-    <>
-      <span className="sm:hidden">{formatCompactVND(value)}</span>
-      <span className="hidden sm:inline">{formatVND(value)}</span>
-    </>
-  );
-}
 
 type Dialog = "createMonth" | "addCategory" | null;
 
