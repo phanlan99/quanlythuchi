@@ -1,11 +1,35 @@
-// Cloudflare Workers config — serves the static export in ./out
+// Cloudflare Worker: static Next.js export (./out) + /api/* backed by D1.
 {
-  "name": "quanlychitieu",
-  "compatibility_date": "2025-09-01",
-  "assets": {
-    "directory": "./out",
-    // /transactions -> out/transactions.html, unknown paths -> out/404.html
-    "html_handling": "auto-trailing-slash",
-    "not_found_handling": "404-page"
-  }
+	"name": "quanlychitieu",
+	"main": "worker/index.ts",
+	"compatibility_date": "2025-09-01",
+	"observability": {
+		"enabled": true
+	},
+	"assets": {
+		"directory": "./out",
+		"binding": "ASSETS",
+		// /transactions -> out/transactions.html, unknown paths -> out/404.html
+		"html_handling": "auto-trailing-slash",
+		"not_found_handling": "404-page",
+		// Only API requests run the Worker code; pages are served straight from the CDN.
+		"run_worker_first": [
+			"/api/*"
+		]
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "quanlychitieu-db"
+			// No "database_id": `wrangler deploy` creates the database automatically
+			// on the first deploy and links it. If your wrangler version can't, run
+			//   npx wrangler d1 create quanlychitieu-db
+			// once and paste the printed id here as "database_id".
+		},
+		{
+			"binding": "quanlychitieu_db",
+			"database_name": "quanlychitieu-db",
+			"database_id": "d9ede277-dec9-494c-9453-ad621452e13a"
+		}
+	]
 }

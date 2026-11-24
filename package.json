@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "cf:dev": "next build && npx wrangler dev",
+    "cf:deploy": "next build && npx wrangler deploy"
   },
   "dependencies": {
     "next": "16.4.6",

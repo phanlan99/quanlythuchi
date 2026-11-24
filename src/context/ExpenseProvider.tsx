@@ -1,47 +1,48 @@
 "use client";
 
-import { createContext, use, useReducer, type ReactNode } from "react";
+import { createContext, use, useEffect, useReducer, useState, type ReactNode } from "react";
+import type { PersistedAction, RemoteState } from "@/lib/actions";
+import { fetchRemoteState, sendAction } from "@/lib/api";
 import {
   DEMO_BUDGET_MONTHS,
   DEMO_BUDGETS,
   DEMO_CATEGORIES,
   DEMO_TRANSACTIONS,
 } from "@/lib/demo-data";
-import type { Budget, Category, Transaction, TransactionInput } from "@/lib/types";
+import type { Budget, Category, TransactionInput } from "@/lib/types";
 
 /**
- * In-memory store for demo data. Nothing is persisted: a full page reload
- * resets everything. Client-side navigation keeps state because this provider
- * sits in the root layout (it renders no UI, so the sidebar stays per-page).
+ * App data store.
  *
- * To plug in a real backend later, keep this context's shape and replace the
- * reducer dispatches with Server Actions / API calls.
+ * - On mount it loads everything from Cloudflare D1 (GET /api/state).
+ * - Every change is applied locally first (instant UI), then sent to D1
+ *   (POST /api/actions) — see `commit` below.
+ * - If the API isn't reachable (e.g. `next dev`), it falls back to in-memory
+ *   demo data and nothing is saved ("demo" status).
  */
 
-interface ExpenseState {
-  transactions: Transaction[];
-  budgets: Budget[];
-  /** Months that have a budget plan (YYYY-MM). Kept separately so a month can exist while still empty. */
-  budgetMonths: string[];
-  /** Built-in demo categories + any the user created. */
-  categories: Category[];
+export type SyncStatus = "loading" | "online" | "demo";
+
+interface ExpenseState extends RemoteState {
+  status: SyncStatus;
 }
 
-type Action =
-  | { type: "add"; transaction: Transaction }
-  | { type: "addCategory"; category: Category }
-  | { type: "update"; id: string; input: TransactionInput }
-  | { type: "remove"; id: string }
-  | { type: "setBudget"; month: string; categoryId: string; limit: number }
-  | { type: "removeBudget"; month: string; categoryId: string }
-  | { type: "createBudgetMonth"; month: string; copyFrom: string | null }
-  | { type: "reset" };
+type Action = PersistedAction | { type: "load"; data: RemoteState; status: SyncStatus };
 
-const initialState: ExpenseState = {
+const DEMO_STATE: RemoteState = {
   transactions: DEMO_TRANSACTIONS,
   budgets: DEMO_BUDGETS,
   budgetMonths: DEMO_BUDGET_MONTHS,
   categories: DEMO_CATEGORIES,
+};
+
+// Prerendered HTML starts empty (no flash of demo numbers before real data arrives).
+const initialState: ExpenseState = {
+  transactions: [],
+  budgets: [],
+  budgetMonths: [],
+  categories: DEMO_CATEGORIES,
+  status: "loading",
 };
 
 const sameBudget = (b: Budget, month: string, categoryId: string) =>
@@ -49,6 +50,8 @@ const sameBudget = (b: Budget, month: string, categoryId: string) =>
 
 function reducer(state: ExpenseState, action: Action): ExpenseState {
   switch (action.type) {
+    case "load":
+      return { ...action.data, status: action.status };
     case "add":
       return { ...state, transactions: [action.transaction, ...state.transactions] };
     case "update":
@@ -92,12 +95,12 @@ function reducer(state: ExpenseState, action: Action): ExpenseState {
         budgetMonths: [...state.budgetMonths, month],
       };
     }
-    case "reset":
-      return initialState;
   }
 }
 
 interface ExpenseContextValue extends ExpenseState {
+  /** True once a save to D1 has failed (UI shows a warning). */
+  syncError: boolean;
   getCategory: (id: string) => Category | undefined;
   /** Create a custom category; returns it (with its new id) so callers can use it right away. */
   addCategory: (input: Omit<Category, "id">) => Category;
@@ -108,7 +111,6 @@ interface ExpenseContextValue extends ExpenseState {
   removeBudget: (month: string, categoryId: string) => void;
   /** Create a budget plan for `month`, optionally copying limits from another month. No-op if it exists. */
   createBudgetMonth: (month: string, copyFrom: string | null) => void;
-  resetDemo: () => void;
 }
 
 const ExpenseContext = createContext<ExpenseContextValue | null>(null);
@@ -118,31 +120,52 @@ function createId(): string {
   idCounter += 1;
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
-    : `tx-${Date.now()}-${idCounter}`;
+    : `id-${Date.now()}-${idCounter}`;
 }
 
 export function ExpenseProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [syncError, setSyncError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRemoteState().then((remote) => {
+      if (cancelled) return;
+      dispatch(
+        remote
+          ? { type: "load", data: remote, status: "online" }
+          : { type: "load", data: DEMO_STATE, status: "demo" },
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** Apply locally (instant), then persist to D1 when connected. */
+  function commit(action: PersistedAction) {
+    dispatch(action);
+    if (state.status === "online") sendAction(action).catch(() => setSyncError(true));
+  }
 
   const value: ExpenseContextValue = {
     ...state,
+    syncError,
     // Newest first, for selects.
     budgetMonths: [...state.budgetMonths].sort((a, b) => b.localeCompare(a)),
     getCategory: (id) => state.categories.find((c) => c.id === id),
     addCategory: (input) => {
       const category: Category = { ...input, id: `custom-${createId()}` };
-      dispatch({ type: "addCategory", category });
+      commit({ type: "addCategory", category });
       return category;
     },
-    addTransaction: (input) => dispatch({ type: "add", transaction: { ...input, id: createId() } }),
-    updateTransaction: (id, input) => dispatch({ type: "update", id, input }),
-    removeTransaction: (id) => dispatch({ type: "remove", id }),
+    addTransaction: (input) => commit({ type: "add", transaction: { ...input, id: createId() } }),
+    updateTransaction: (id, input) => commit({ type: "update", id, input }),
+    removeTransaction: (id) => commit({ type: "remove", id }),
     setBudget: (month, categoryId, limit) =>
-      dispatch({ type: "setBudget", month, categoryId, limit }),
-    removeBudget: (month, categoryId) => dispatch({ type: "removeBudget", month, categoryId }),
-    createBudgetMonth: (month, copyFrom) =>
-      dispatch({ type: "createBudgetMonth", month, copyFrom }),
-    resetDemo: () => dispatch({ type: "reset" }),
+      commit({ type: "setBudget", month, categoryId, limit }),
+    removeBudget: (month, categoryId) => commit({ type: "removeBudget", month, categoryId }),
+    createBudgetMonth: (month, copyFrom) => commit({ type: "createBudgetMonth", month, copyFrom }),
   };
 
   return <ExpenseContext value={value}>{children}</ExpenseContext>;
