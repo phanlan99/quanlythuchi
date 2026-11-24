@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useAuth } from "@/context/AuthProvider";
-import { ADMIN_NAV_ITEM, DEFAULT_NAV_ITEMS, Icons } from "@/components/sidebar/nav-config";
+import { ADMIN_NAV_ITEMS, DEFAULT_NAV_ITEMS, Icons } from "@/components/sidebar/nav-config";
 import { openAuthDialog } from "@/components/auth/auth-dialog-store";
 
 const pill =
@@ -70,7 +70,7 @@ export function AccountMenu() {
     );
   }
 
-  const items = user.role === "admin" ? [...DEFAULT_NAV_ITEMS, ADMIN_NAV_ITEM] : DEFAULT_NAV_ITEMS;
+  const items = user.role === "admin" ? [...DEFAULT_NAV_ITEMS, ...ADMIN_NAV_ITEMS] : DEFAULT_NAV_ITEMS;
   const close = () => setOpen(false);
 
   // Arrow keys / Home / End move between items; Tab leaves the menu.

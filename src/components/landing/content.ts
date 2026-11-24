@@ -48,7 +48,7 @@ export const STEPS = [
 export const FAQS = [
   {
     q: "Người khác có xem được dữ liệu của tôi không?",
-    a: "Không. Giao dịch, danh mục và ngân sách chỉ hiển thị cho tài khoản của bạn. Quản trị viên chỉ quản lý tài khoản, không xem chi tiêu của bạn trong ứng dụng.",
+    a: "Người dùng khác không xem được giao dịch, danh mục và ngân sách của bạn. Quản trị viên hệ thống có quyền xem dữ liệu để vận hành và hỗ trợ. Mật khẩu được mã hoá một chiều nên không ai xem được, kể cả quản trị viên.",
   },
   {
     q: "Tôi quên mật khẩu thì làm sao?",

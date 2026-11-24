@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { useAuth } from "@/context/AuthProvider";
 import { useOverlay } from "@/hooks/use-overlay";
-import { ADMIN_NAV_ITEM, DEFAULT_NAV_ITEMS, Icons, type NavItem } from "./nav-config";
+import { ADMIN_NAV_ITEMS, DEFAULT_NAV_ITEMS, Icons, type NavItem } from "./nav-config";
 import { UserCard } from "./UserCard";
 
 export interface SidebarProps {
@@ -45,8 +45,8 @@ export function Sidebar({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Admins always get the user-management entry.
-  const items = user?.role === "admin" ? [...pageItems, ADMIN_NAV_ITEM] : pageItems;
+  // Admins always get the user-management and data entries.
+  const items = user?.role === "admin" ? [...pageItems, ...ADMIN_NAV_ITEMS] : pageItems;
 
   // Close the mobile drawer with Escape and lock body scroll while open.
   useOverlay(mobileOpen, () => setMobileOpen(false));

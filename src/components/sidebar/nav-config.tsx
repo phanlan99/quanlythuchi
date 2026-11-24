@@ -116,6 +116,13 @@ export const Icons = {
       <path d="M8 11V7a4 4 0 017.5-2" />
     </svg>
   ),
+  database: (
+    <svg {...iconProps}>
+      <ellipse cx="12" cy="5.5" rx="7.5" ry="2.5" />
+      <path d="M4.5 5.5v13c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-13" />
+      <path d="M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5" />
+    </svg>
+  ),
   search: (
     <svg {...iconProps}>
       <circle cx="11" cy="11" r="6.5" />
@@ -158,5 +165,8 @@ export const DEFAULT_NAV_ITEMS: NavItem[] = [
   { href: "/budgets", label: "Ngân sách", icon: Icons.budget },
 ];
 
-/** Added automatically to the sidebar for admins. */
-export const ADMIN_NAV_ITEM: NavItem = { href: "/admin", label: "Người dùng", icon: Icons.users };
+/** Added automatically to the sidebar and account menu for admins. */
+export const ADMIN_NAV_ITEMS: NavItem[] = [
+  { href: "/admin", label: "Người dùng", icon: Icons.users },
+  { href: "/data", label: "Dữ liệu", icon: Icons.database },
+];

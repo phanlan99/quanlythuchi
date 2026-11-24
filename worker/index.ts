@@ -15,11 +15,13 @@
  * Admin
  *   GET  /api/admin/users     users + pending password requests
  *   POST /api/admin/users     setRole | setLocked | resetPassword | delete | dismissReset
+ *   GET  /api/admin/tables    table structures (+ ?table=x&page=n for rows), read-only
  *
  * Tables are created/upgraded automatically on the first request (schema.ts).
  * Only relative imports here (no `@/`): wrangler bundles these files directly.
  */
 import { adminAction, listUsers } from "./admin";
+import { listTables, tableRows } from "./admin-data";
 import {
   changePassword,
   forgotPassword,
@@ -34,7 +36,8 @@ import { HttpError, json, type D1Database, type Env } from "./env";
 import { applyAction, getState } from "./expenses";
 import { ensureSchema } from "./schema";
 
-async function route(db: D1Database, request: Request, path: string): Promise<Response> {
+async function route(db: D1Database, request: Request, url: URL): Promise<Response> {
+  const path = url.pathname;
   const post = request.method === "POST";
   const get = request.method === "GET";
 
@@ -61,10 +64,13 @@ async function route(db: D1Database, request: Request, path: string): Promise<Re
   if (post && path === "/api/actions") return applyAction(db, request, session.user.id);
 
   // ---- Admin ----
-  if (path === "/api/admin/users") {
+  if (path.startsWith("/api/admin/")) {
     if (session.user.role !== "admin") throw new HttpError(403, "Chỉ dành cho quản trị viên");
-    if (get) return listUsers(db);
-    if (post) return adminAction(db, request, session);
+    if (path === "/api/admin/users" && get) return listUsers(db);
+    if (path === "/api/admin/users" && post) return adminAction(db, request, session);
+    if (path === "/api/admin/tables" && get) {
+      return url.searchParams.has("table") ? tableRows(db, url) : listTables(db);
+    }
   }
 
   throw new HttpError(404, "Not found");
@@ -79,7 +85,7 @@ export default {
 
     try {
       await ensureSchema(env.DB);
-      return await route(env.DB, request, url.pathname);
+      return await route(env.DB, request, url);
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.message, code: err.code }, err.status);
       console.error(err);

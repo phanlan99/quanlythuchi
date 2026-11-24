@@ -1,4 +1,5 @@
 import type { PersistedAction, RemoteState } from "./actions";
+import type { TableInfo, TableRows } from "./admin-data";
 import type { AdminUserAction, ProfileInput, PublicUser, RegisterInput, ResetRequest } from "./users";
 
 /** The server answered with an error (message is user-facing Vietnamese text). */
@@ -60,6 +61,10 @@ export const api = {
     request<{ users: PublicUser[]; resetRequests: ResetRequest[] }>("/api/admin/users"),
   adminAction: (action: AdminUserAction) =>
     request<{ ok: true; tempPassword?: string }>("/api/admin/users", action),
+
+  adminTables: () => request<{ tables: TableInfo[] }>("/api/admin/tables"),
+  adminTableRows: (table: string, page: number) =>
+    request<TableRows>(`/api/admin/tables?table=${encodeURIComponent(table)}&page=${page}`),
 };
 
 // Actions are sent strictly one after another, so dependent writes
