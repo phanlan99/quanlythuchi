@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useExpenses } from "@/context/ExpenseProvider";
 import {
   BUDGET_WARNING_THRESHOLD,
@@ -11,10 +11,8 @@ import {
   type BudgetUsage,
 } from "@/lib/expense-utils";
 import { formatCompactVND, formatVND } from "@/lib/format";
-import type { Category } from "@/lib/types";
 import { Icons } from "@/components/sidebar/nav-config";
 import {
-  EmptyState,
   MonthSelect,
   PageHeader,
   ProgressBar,
@@ -23,6 +21,7 @@ import {
   surfaceClass,
 } from "@/components/ui";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
+import { AddCategoryBudgetDialog } from "./AddCategoryBudgetDialog";
 import { CreateBudgetMonthDialog } from "./CreateBudgetMonthDialog";
 
 /** Status colors (bar) + text style. Status is also spelled out in text, never color alone. */
@@ -37,8 +36,16 @@ function statusOf(spent: number, limit: number): BudgetStatus {
   return percent > 100 ? "over" : percent >= BUDGET_WARNING_THRESHOLD ? "warning" : "ok";
 }
 
+const CUSTOM_COLORS = ["#2a78d6", "#1baf7a", "#e87ba4", "#6250d6", "#eda100", "#0ca30c"];
+
 /** "50.000" / "50,000" / "50000" -> 50000 */
 const parseAmount = (raw: string) => Number(raw.replace(/[.,\s]/g, ""));
+
+/** Small square icon button used for card actions. */
+const iconButton =
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
+const iconButtonDanger =
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950";
 
 /** Full amount on sm+, compact ("1,5tr") on phones. */
 function Amount({ value }: { value: number }) {
@@ -50,6 +57,8 @@ function Amount({ value }: { value: number }) {
   );
 }
 
+type Dialog = "createMonth" | "addCategory" | null;
+
 export function BudgetsView() {
   const {
     transactions,
@@ -59,37 +68,41 @@ export function BudgetsView() {
     setBudget,
     removeBudget,
     createBudgetMonth,
+    addCategory,
   } = useExpenses();
   const [selected, setSelected] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [dialog, setDialog] = useState<Dialog>(null);
   const month = selected && budgetMonths.includes(selected) ? selected : (budgetMonths[0] ?? "");
 
   // Suggest the month after the newest plan (or the newest month with transactions).
-  const latest = budgetMonths[0] ?? getAvailableMonths(transactions)[0];
-  const suggestedMonth = budgetMonths[0] ? nextMonthKey(budgetMonths[0]) : (latest ?? "");
+  const suggestedMonth = budgetMonths[0]
+    ? nextMonthKey(budgetMonths[0])
+    : (getAvailableMonths(transactions)[0] ?? "");
 
   // Most-used budgets first, so problems are on top.
   const usage = month
     ? getBudgetUsage(budgets, transactions, categories, month).sort((a, b) => b.percent - a.percent)
     : [];
   const budgeted = new Set(usage.map((u) => u.category.id));
-  const unbudgeted = categories.filter((c) => c.type === "expense" && !budgeted.has(c.id));
+  const expenseCategories = categories.filter((c) => c.type === "expense");
+  const unbudgeted = expenseCategories.filter((c) => !budgeted.has(c.id));
 
   const totalLimit = usage.reduce((s, u) => s + u.limit, 0);
   const totalSpent = usage.reduce((s, u) => s + u.spent, 0);
   const totalRemaining = totalLimit - totalSpent;
   const totalStatus = statusOf(totalSpent, totalLimit);
 
-  const openCreate = () => setCreating(true);
+  function handleRemove(u: BudgetUsage) {
+    if (!window.confirm(`Xóa danh mục "${u.category.name}" khỏi ngân sách tháng này?`)) return;
+    removeBudget(month, u.category.id);
+  }
 
   return (
     <>
       <PageHeader
         title="Ngân sách"
         actions={
-          budgetMonths.length > 0 && (
-            <MonthSelect months={budgetMonths} value={month} onChange={setSelected} />
-          )
+          month && <MonthSelect months={budgetMonths} value={month} onChange={setSelected} />
         }
       />
 
@@ -99,7 +112,7 @@ export function BudgetsView() {
           <p className="text-sm text-zinc-500">Chưa có ngân sách nào</p>
           <button
             type="button"
-            onClick={openCreate}
+            onClick={() => setDialog("createMonth")}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
           >
             Tạo ngân sách tháng
@@ -145,51 +158,75 @@ export function BudgetsView() {
             </div>
           </div>
 
-          {usage.length === 0 ? (
-            <EmptyState>Tháng này chưa có hạn mức. Thêm danh mục bên dưới.</EmptyState>
-          ) : (
-            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {usage.map((u) => (
-                <BudgetItem
-                  key={u.category.id}
-                  usage={u}
-                  onSave={(limit) => setBudget(month, u.category.id, limit)}
-                  onRemove={() => removeBudget(month, u.category.id)}
-                />
-              ))}
-            </ul>
-          )}
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {usage.map((u) => (
+              <BudgetItem
+                key={u.category.id}
+                usage={u}
+                onSave={(limit) => setBudget(month, u.category.id, limit)}
+                onRemove={() => handleRemove(u)}
+              />
+            ))}
 
-          {unbudgeted.length > 0 && (
-            <AddCategoryBudget
-              key={month}
-              categories={unbudgeted}
-              onAdd={(categoryId, limit) => setBudget(month, categoryId, limit)}
-            />
-          )}
+            {/* "Add category" tile — always the last cell; can also create a new category */}
+            <li>
+              <button
+                type="button"
+                onClick={() => setDialog("addCategory")}
+                aria-label="Thêm danh mục vào ngân sách tháng này"
+                className="flex h-full min-h-28 w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-zinc-200 text-zinc-400 transition-colors hover:border-emerald-400 hover:bg-emerald-50/50 hover:text-emerald-600 dark:border-zinc-800 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/30"
+              >
+                {Icons.plus}
+                <span className="text-xs font-medium">Thêm danh mục</span>
+              </button>
+            </li>
+          </ul>
         </>
       )}
 
       {/* Spacer so the floating button never covers the last card */}
       <div className="h-20" aria-hidden />
 
-      {!creating && (
+      {dialog === null && (
         <FloatingActionButton
           icon={Icons.calendarPlus}
           label="Tháng mới"
-          onClick={openCreate}
+          onClick={() => setDialog("createMonth")}
         />
       )}
 
-      {creating && (
+      {dialog === "createMonth" && (
         <CreateBudgetMonthDialog
           existingMonths={budgetMonths}
           defaultMonth={suggestedMonth}
-          onClose={() => setCreating(false)}
+          onClose={() => setDialog(null)}
           onCreate={(newMonth, copyFrom) => {
             createBudgetMonth(newMonth, copyFrom);
             setSelected(newMonth);
-            setCreating(false);
+            setDialog(null);
+          }}
+        />
+      )}
+
+      {dialog === "addCategory" && month && (
+        <AddCategoryBudgetDialog
+          month={month}
+          available={unbudgeted}
+          takenNames={expenseCategories.map((c) => c.name.toLowerCase())}
+          onClose={() => setDialog(null)}
+          onAdd={(choice, limit) => {
+            const categoryId =
+              choice.kind === "existing"
+                ? choice.categoryId
+                : addCategory({
+                    name: choice.name,
+                    icon: choice.icon,
+                    type: "expense",
+                    // Rotate through a few distinct hues for custom categories.
+                    color: CUSTOM_COLORS[expenseCategories.length % CUSTOM_COLORS.length],
+                  }).id;
+            setBudget(month, categoryId, limit);
+            setDialog(null);
           }}
         />
       )}
@@ -207,6 +244,7 @@ function BudgetItem({
   onRemove: () => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const editing = draft !== null;
   const status = STATUS[u.status];
 
   function commit() {
@@ -218,50 +256,68 @@ function BudgetItem({
 
   return (
     <li className={`${surfaceClass} p-4`}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+      <div className="flex items-center gap-2">
+        <span className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium">
           <span aria-hidden>{u.category.icon}</span>
           <span className="truncate">{u.category.name}</span>
         </span>
 
-        {draft !== null ? (
-          <div className="flex items-center gap-1">
-            <input
-              autoFocus
-              inputMode="numeric"
-              aria-label={`Hạn mức ${u.category.name}`}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={commit}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commit();
-                if (e.key === "Escape") setDraft(null);
-              }}
-              className={`${inputClass} w-28 py-1 text-right`}
-            />
-            {/* preventDefault on mousedown keeps the input focused, so blur doesn't unmount this button first */}
+        {/* Card actions: icons on every screen size */}
+        {editing ? (
+          <>
+            <button type="button" onClick={commit} aria-label="Lưu" title="Lưu" className={iconButton}>
+              <span className="text-emerald-600">{Icons.check}</span>
+            </button>
             <button
               type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={onRemove}
-              aria-label={`Xóa hạn mức ${u.category.name}`}
-              className="rounded-md px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"
+              onClick={() => setDraft(null)}
+              aria-label="Hủy"
+              title="Hủy"
+              className={iconButton}
             >
-              Xóa
+              {Icons.close}
             </button>
-          </div>
+          </>
         ) : (
-          <button
-            type="button"
-            onClick={() => setDraft(String(u.limit))}
-            aria-label={`Sửa hạn mức ${u.category.name}`}
-            className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-sm tabular-nums text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-          >
-            {formatVND(u.limit)}
-            {Icons.pencil}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setDraft(String(u.limit))}
+              aria-label={`Sửa hạn mức ${u.category.name}`}
+              title="Sửa hạn mức"
+              className={iconButton}
+            >
+              {Icons.pencil}
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label={`Xóa ${u.category.name} khỏi tháng này`}
+              title="Xóa danh mục"
+              className={iconButtonDanger}
+            >
+              {Icons.trash}
+            </button>
+          </>
         )}
       </div>
+
+      {editing ? (
+        <input
+          autoFocus
+          inputMode="numeric"
+          aria-label={`Hạn mức ${u.category.name}`}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") setDraft(null);
+          }}
+          className={`${inputClass} mt-2 tabular-nums`}
+        />
+      ) : (
+        <p className="mt-1 text-sm tabular-nums text-zinc-500">{formatVND(u.limit)}</p>
+      )}
 
       <div className="mt-3">
         <ProgressBar percent={u.percent} color={status.bar ?? u.category.color} />
@@ -275,62 +331,5 @@ function BudgetItem({
         </span>
       </div>
     </li>
-  );
-}
-
-function AddCategoryBudget({
-  categories,
-  onAdd,
-}: {
-  categories: Category[];
-  onAdd: (categoryId: string, limit: number) => void;
-}) {
-  const [categoryId, setCategoryId] = useState("");
-  const [amount, setAmount] = useState("");
-  const value = parseAmount(amount);
-  const valid = categoryId !== "" && Number.isFinite(value) && value > 0;
-
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!valid) return;
-    onAdd(categoryId, Math.round(value));
-    setCategoryId("");
-    setAmount("");
-  }
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className={`${surfaceClass} mt-3 flex flex-wrap items-center gap-2 border-dashed p-3`}
-    >
-      <select
-        aria-label="Danh mục"
-        value={categoryId}
-        onChange={(e) => setCategoryId(e.target.value)}
-        className={`${inputClass} min-w-40 flex-1`}
-      >
-        <option value="">+ Thêm danh mục...</option>
-        {categories.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.icon} {c.name}
-          </option>
-        ))}
-      </select>
-      <input
-        inputMode="numeric"
-        placeholder="Hạn mức"
-        aria-label="Hạn mức"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-        className={`${inputClass} w-32`}
-      />
-      <button
-        type="submit"
-        disabled={!valid}
-        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        Thêm
-      </button>
-    </form>
   );
 }

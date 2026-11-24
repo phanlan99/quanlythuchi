@@ -23,10 +23,13 @@ interface ExpenseState {
   budgets: Budget[];
   /** Months that have a budget plan (YYYY-MM). Kept separately so a month can exist while still empty. */
   budgetMonths: string[];
+  /** Built-in demo categories + any the user created. */
+  categories: Category[];
 }
 
 type Action =
   | { type: "add"; transaction: Transaction }
+  | { type: "addCategory"; category: Category }
   | { type: "update"; id: string; input: TransactionInput }
   | { type: "remove"; id: string }
   | { type: "setBudget"; month: string; categoryId: string; limit: number }
@@ -38,6 +41,7 @@ const initialState: ExpenseState = {
   transactions: DEMO_TRANSACTIONS,
   budgets: DEMO_BUDGETS,
   budgetMonths: DEMO_BUDGET_MONTHS,
+  categories: DEMO_CATEGORIES,
 };
 
 const sameBudget = (b: Budget, month: string, categoryId: string) =>
@@ -56,6 +60,8 @@ function reducer(state: ExpenseState, action: Action): ExpenseState {
       };
     case "remove":
       return { ...state, transactions: state.transactions.filter((t) => t.id !== action.id) };
+    case "addCategory":
+      return { ...state, categories: [...state.categories, action.category] };
     case "setBudget": {
       const { month, categoryId, limit } = action;
       const exists = state.budgets.some((b) => sameBudget(b, month, categoryId));
@@ -92,8 +98,9 @@ function reducer(state: ExpenseState, action: Action): ExpenseState {
 }
 
 interface ExpenseContextValue extends ExpenseState {
-  categories: Category[];
   getCategory: (id: string) => Category | undefined;
+  /** Create a custom category; returns it (with its new id) so callers can use it right away. */
+  addCategory: (input: Omit<Category, "id">) => Category;
   addTransaction: (input: TransactionInput) => void;
   updateTransaction: (id: string, input: TransactionInput) => void;
   removeTransaction: (id: string) => void;
@@ -121,8 +128,12 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
     ...state,
     // Newest first, for selects.
     budgetMonths: [...state.budgetMonths].sort((a, b) => b.localeCompare(a)),
-    categories: DEMO_CATEGORIES,
-    getCategory: (id) => DEMO_CATEGORIES.find((c) => c.id === id),
+    getCategory: (id) => state.categories.find((c) => c.id === id),
+    addCategory: (input) => {
+      const category: Category = { ...input, id: `custom-${createId()}` };
+      dispatch({ type: "addCategory", category });
+      return category;
+    },
     addTransaction: (input) => dispatch({ type: "add", transaction: { ...input, id: createId() } }),
     updateTransaction: (id, input) => dispatch({ type: "update", id, input }),
     removeTransaction: (id) => dispatch({ type: "remove", id }),

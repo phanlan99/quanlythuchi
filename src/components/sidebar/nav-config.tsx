@@ -59,6 +59,17 @@ export const Icons = {
       <path d="M12 13v5M9.5 15.5h5" />
     </svg>
   ),
+  check: (
+    <svg {...iconProps} width={16} height={16}>
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  ),
+  trash: (
+    <svg {...iconProps} width={16} height={16}>
+      <path d="M4 7h16M10 11v6M14 11v6" />
+      <path d="M6 7l1 13h10l1-13M9 7V4h6v3" />
+    </svg>
+  ),
   plus: (
     <svg {...iconProps}>
       <path d="M12 5v14M5 12h14" />
