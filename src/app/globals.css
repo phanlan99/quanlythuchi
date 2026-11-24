@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Chart series (validated blue/orange pair — safe for color-blind users) */
+  --series-income: #2a78d6;
+  --series-expense: #eb6834;
 }
 
 @theme inline {
@@ -16,11 +19,13 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --series-income: #3987e5;
+    --series-expense: #d95926;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
