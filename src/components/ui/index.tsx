@@ -88,6 +88,12 @@ export function ProgressBar({ percent, color }: { percent: number; color: string
   );
 }
 
+/** Small square icon button used for card actions (edit / delete). */
+export const iconButtonClass =
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
+export const iconButtonDangerClass =
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950";
+
 export const inputClass =
   "w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-900";
 

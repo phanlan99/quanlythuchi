@@ -4,6 +4,8 @@ import type {
   Transaction,
   TransactionFilters,
   TransactionInput,
+  Wallet,
+  WalletKind,
 } from "./types";
 
 /* Pure functions only — easy to test and to reuse once a real backend exists. */
@@ -178,11 +180,70 @@ export function getBudgetUsage(
   });
 }
 
+/* --------------------------------- Wallets ---------------------------------- */
+
+export const WALLET_KINDS: { kind: WalletKind; label: string }[] = [
+  { kind: "bank", label: "Ngân hàng" },
+  { kind: "ewallet", label: "Ví điện tử" },
+  { kind: "cash", label: "Tiền mặt" },
+  { kind: "investment", label: "Đầu tư" },
+  { kind: "other", label: "Khác" },
+];
+
+export const walletKindLabel = (kind: WalletKind) =>
+  WALLET_KINDS.find((k) => k.kind === kind)?.label ?? "Khác";
+
+export interface WalletBalance {
+  wallet: Wallet;
+  /** openingBalance + income − expense */
+  balance: number;
+  income: number;
+  expense: number;
+  /** Number of linked transactions. */
+  count: number;
+}
+
+/** Current balance of every wallet, in the wallets' own order. */
+export function getWalletBalances(wallets: Wallet[], transactions: Transaction[]): WalletBalance[] {
+  const flows = new Map<string, { income: number; expense: number; count: number }>();
+  for (const t of transactions) {
+    if (!t.walletId) continue;
+    const f = flows.get(t.walletId) ?? { income: 0, expense: 0, count: 0 };
+    f[t.type] += t.amount;
+    f.count += 1;
+    flows.set(t.walletId, f);
+  }
+  return wallets.map((wallet) => {
+    const f = flows.get(wallet.id) ?? { income: 0, expense: 0, count: 0 };
+    return { wallet, ...f, balance: wallet.openingBalance + f.income - f.expense };
+  });
+}
+
+/**
+ * Opening balance that makes the wallet show `currentBalance` today, given its
+ * linked transactions. Used when the user types the real balance from their bank app.
+ */
+export function openingBalanceFor(
+  walletId: string | null,
+  currentBalance: number,
+  transactions: Transaction[],
+): number {
+  if (!walletId) return currentBalance;
+  let net = 0;
+  for (const t of transactions) {
+    if (t.walletId === walletId) net += t.type === "income" ? t.amount : -t.amount;
+  }
+  return currentBalance - net;
+}
+
+/* -------------------------------- Validation -------------------------------- */
+
 export type ValidationErrors = Partial<Record<keyof TransactionInput, string>>;
 
 export function validateTransaction(
   input: TransactionInput,
   categories: Category[],
+  wallets: Wallet[] = [],
 ): ValidationErrors {
   const errors: ValidationErrors = {};
 
@@ -205,6 +266,10 @@ export function validateTransaction(
 
   if (input.note.length > 120) {
     errors.note = "Ghi chú tối đa 120 ký tự";
+  }
+
+  if (input.walletId && !wallets.some((w) => w.id === input.walletId)) {
+    errors.walletId = "Ví / tài khoản không tồn tại";
   }
 
   return errors;

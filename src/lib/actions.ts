@@ -1,4 +1,4 @@
-import type { Budget, Category, Transaction, TransactionInput } from "./types";
+import type { Budget, Category, Transaction, TransactionInput, Wallet, WalletInput } from "./types";
 
 /**
  * Every data change in the app, as a plain serializable object.
@@ -16,7 +16,11 @@ export type PersistedAction =
   | { type: "addCategory"; category: Category }
   | { type: "setBudget"; month: string; categoryId: string; limit: number }
   | { type: "removeBudget"; month: string; categoryId: string }
-  | { type: "createBudgetMonth"; month: string; copyFrom: string | null };
+  | { type: "createBudgetMonth"; month: string; copyFrom: string | null }
+  | { type: "addWallet"; wallet: Wallet }
+  | { type: "updateWallet"; id: string; input: WalletInput }
+  /** Deletes the wallet; its transactions are kept but unlinked (walletId = null). */
+  | { type: "removeWallet"; id: string };
 
 /** Full data snapshot returned by GET /api/state. */
 export interface RemoteState {
@@ -24,4 +28,5 @@ export interface RemoteState {
   budgets: Budget[];
   budgetMonths: string[];
   categories: Category[];
+  wallets: Wallet[];
 }

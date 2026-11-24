@@ -9,8 +9,15 @@ import {
   DEMO_BUDGETS,
   DEMO_CATEGORIES,
   DEMO_TRANSACTIONS,
+  DEMO_WALLETS,
 } from "@/lib/demo-data";
-import type { Budget, Category, TransactionInput } from "@/lib/types";
+import type {
+  Budget,
+  Category,
+  TransactionInput,
+  Wallet,
+  WalletInput,
+} from "@/lib/types";
 
 /**
  * App data store — holds the SIGNED-IN USER's data.
@@ -36,6 +43,7 @@ const DEMO_STATE: RemoteState = {
   budgets: DEMO_BUDGETS,
   budgetMonths: DEMO_BUDGET_MONTHS,
   categories: DEMO_CATEGORIES,
+  wallets: DEMO_WALLETS,
 };
 
 const EMPTY_STATE: RemoteState = {
@@ -43,6 +51,7 @@ const EMPTY_STATE: RemoteState = {
   budgets: [],
   budgetMonths: [],
   categories: DEMO_CATEGORIES,
+  wallets: [],
 };
 
 function initState(mode: Mode): ExpenseState {
@@ -56,7 +65,8 @@ const sameBudget = (b: Budget, month: string, categoryId: string) =>
 function reducer(state: ExpenseState, action: Action): ExpenseState {
   switch (action.type) {
     case "load":
-      return { ...action.data, status: "online" };
+      // `?? []` tolerates an older Worker that doesn't return wallets yet.
+      return { ...action.data, wallets: action.data.wallets ?? [], status: "online" };
     case "loadFailed":
       return { ...state, status: "error" };
     case "add":
@@ -102,6 +112,22 @@ function reducer(state: ExpenseState, action: Action): ExpenseState {
         budgetMonths: [...state.budgetMonths, month],
       };
     }
+    case "addWallet":
+      return { ...state, wallets: [...state.wallets, action.wallet] };
+    case "updateWallet":
+      return {
+        ...state,
+        wallets: state.wallets.map((w) => (w.id === action.id ? { ...action.input, id: w.id } : w)),
+      };
+    case "removeWallet":
+      return {
+        ...state,
+        wallets: state.wallets.filter((w) => w.id !== action.id),
+        // Keep the transactions, just unlink them (mirrors the Worker).
+        transactions: state.transactions.map((t) =>
+          t.walletId === action.id ? { ...t, walletId: null } : t,
+        ),
+      };
   }
 }
 
@@ -118,6 +144,12 @@ interface ExpenseContextValue extends ExpenseState {
   removeBudget: (month: string, categoryId: string) => void;
   /** Create a budget plan for `month`, optionally copying limits from another month. No-op if it exists. */
   createBudgetMonth: (month: string, copyFrom: string | null) => void;
+  getWallet: (id: string | null | undefined) => Wallet | undefined;
+  /** Create a wallet / account; returns it with its new id. */
+  addWallet: (input: WalletInput) => Wallet;
+  updateWallet: (id: string, input: WalletInput) => void;
+  /** Delete a wallet; its transactions stay but become unlinked. */
+  removeWallet: (id: string) => void;
 }
 
 const ExpenseContext = createContext<ExpenseContextValue | null>(null);
@@ -187,6 +219,14 @@ function ExpenseStore({ mode, children }: { mode: Mode; children: ReactNode }) {
       commit({ type: "setBudget", month, categoryId, limit }),
     removeBudget: (month, categoryId) => commit({ type: "removeBudget", month, categoryId }),
     createBudgetMonth: (month, copyFrom) => commit({ type: "createBudgetMonth", month, copyFrom }),
+    getWallet: (id) => (id ? state.wallets.find((w) => w.id === id) : undefined),
+    addWallet: (input) => {
+      const wallet: Wallet = { ...input, id: `wallet-${createId()}` };
+      commit({ type: "addWallet", wallet });
+      return wallet;
+    },
+    updateWallet: (id, input) => commit({ type: "updateWallet", id, input }),
+    removeWallet: (id) => commit({ type: "removeWallet", id }),
   };
 
   return <ExpenseContext value={value}>{children}</ExpenseContext>;

@@ -7,6 +7,7 @@ import {
   filterTransactions,
   getAvailableMonths,
   getBudgetUsage,
+  getWalletBalances,
   sortByDateDesc,
   summarize,
   totalsByCategory,
@@ -25,7 +26,7 @@ import { TransactionList } from "@/components/transactions/TransactionList";
 import { DailyChart } from "./DailyChart";
 
 export function DashboardView() {
-  const { transactions, categories, budgets } = useExpenses();
+  const { transactions, categories, budgets, wallets } = useExpenses();
   const months = getAvailableMonths(transactions);
   const [selected, setSelected] = useState<string | null>(null);
   // Fall back to the newest month if the selected one no longer has data.
@@ -38,6 +39,7 @@ export function DashboardView() {
   const alertCount = getBudgetUsage(budgets, transactions, categories, month).filter(
     (b) => b.status !== "ok",
   ).length;
+  const totalAssets = getWalletBalances(wallets, transactions).reduce((s, w) => s + w.balance, 0);
 
   return (
     <>
@@ -54,6 +56,24 @@ export function DashboardView() {
           <StatCard label="Số dư" amount={summary.balance} />
         </div>
       </div>
+
+      {wallets.length > 0 && (
+        <Link
+          href="/budgets#wallets"
+          className="mb-4 flex items-center justify-between rounded-lg border border-zinc-200/80 bg-white px-4 py-2.5 text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+        >
+          <span className="text-zinc-500">
+            Tổng tài sản · {wallets.length} ví / tài khoản
+          </span>
+          <span
+            className={`font-semibold tabular-nums ${
+              totalAssets < 0 ? "text-rose-600 dark:text-rose-400" : ""
+            }`}
+          >
+            {formatVND(totalAssets)} <span aria-hidden>→</span>
+          </span>
+        </Link>
+      )}
 
       <Card title="Thu chi theo ngày" className="mt-1">
         <DailyChart transactions={transactions} month={month} />

@@ -41,6 +41,12 @@ export const Icons = {
       <path d="M12 3v9l6.5 6.2" />
     </svg>
   ),
+  wallet: (
+    <svg {...iconProps}>
+      <path d="M19 7V5.5A1.5 1.5 0 0017.5 4h-12A2.5 2.5 0 003 6.5v11A2.5 2.5 0 005.5 20h13a1.5 1.5 0 001.5-1.5V15" />
+      <path d="M3 6.5A2.5 2.5 0 005.5 9H19.5a.5.5 0 01.5.5V15h-4a2 2 0 010-4h4" />
+    </svg>
+  ),
   menu: (
     <svg {...iconProps}>
       <path d="M4 6h16M4 12h16M4 18h16" />

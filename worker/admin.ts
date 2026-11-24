@@ -78,12 +78,13 @@ export async function adminAction(db: D1Database, request: Request, session: Ses
       return json({ ok: true, tempPassword });
     }
     case "delete":
-      // Children first (foreign keys): budgets → months → transactions → categories → user.
+      // Children first (foreign keys): budgets → months → transactions → wallets → categories → user.
       await db.batch(
         [
           "DELETE FROM user_budgets WHERE user_id = ?",
           "DELETE FROM user_budget_months WHERE user_id = ?",
           "DELETE FROM transactions WHERE user_id = ?",
+          "DELETE FROM wallets WHERE user_id = ?",
           "DELETE FROM categories WHERE user_id = ?",
           "DELETE FROM sessions WHERE user_id = ?",
           "DELETE FROM password_resets WHERE user_id = ?",

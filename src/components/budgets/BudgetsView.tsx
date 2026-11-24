@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useExpenses } from "@/context/ExpenseProvider";
 import {
   BUDGET_WARNING_THRESHOLD,
@@ -16,6 +16,8 @@ import {
   MonthSelect,
   PageHeader,
   ProgressBar,
+  iconButtonClass as iconButton,
+  iconButtonDangerClass as iconButtonDanger,
   inputClass,
   stickyBarClass,
   surfaceClass,
@@ -23,6 +25,7 @@ import {
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
 import { AddCategoryBudgetDialog } from "./AddCategoryBudgetDialog";
 import { CreateBudgetMonthDialog } from "./CreateBudgetMonthDialog";
+import { WalletsPanel } from "./WalletsPanel";
 
 /** Status colors (bar) + text style. Status is also spelled out in text, never color alone. */
 const STATUS: Record<BudgetStatus, { bar?: string; text: string }> = {
@@ -41,12 +44,6 @@ const CUSTOM_COLORS = ["#2a78d6", "#1baf7a", "#e87ba4", "#6250d6", "#eda100", "#
 /** "50.000" / "50,000" / "50000" -> 50000 */
 const parseAmount = (raw: string) => Number(raw.replace(/[.,\s]/g, ""));
 
-/** Small square icon button used for card actions. */
-const iconButton =
-  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
-const iconButtonDanger =
-  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950";
-
 /** Full amount on sm+, compact ("1,5tr") on phones. */
 function Amount({ value }: { value: number }) {
   return (
@@ -59,7 +56,94 @@ function Amount({ value }: { value: number }) {
 
 type Dialog = "createMonth" | "addCategory" | null;
 
+type Tab = "limits" | "wallets";
+
+/** `/budgets#wallets` opens the wallets tab (e.g. from the dashboard link). */
+const WALLETS_HASH = "#wallets";
+const subscribeHash = (cb: () => void) => {
+  window.addEventListener("hashchange", cb);
+  return () => window.removeEventListener("hashchange", cb);
+};
+
+/** Active tab, mirrored in the URL hash so a reload stays on the same tab. */
+function useTab(): [Tab, (tab: Tab) => void] {
+  const hash = useSyncExternalStore(
+    subscribeHash,
+    () => window.location.hash,
+    () => "",
+  );
+  const [picked, setPicked] = useState<Tab | null>(null);
+  const tab = picked ?? (hash === WALLETS_HASH ? "wallets" : "limits");
+
+  function select(next: Tab) {
+    setPicked(next);
+    const { pathname, search } = window.location;
+    window.history.replaceState(null, "", next === "wallets" ? WALLETS_HASH : pathname + search);
+  }
+  return [tab, select];
+}
+
+const TABS: { value: Tab; label: string }[] = [
+  { value: "limits", label: "Hạn mức chi tiêu" },
+  { value: "wallets", label: "Ví & tài khoản" },
+];
+
 export function BudgetsView() {
+  const { budgetMonths } = useExpenses();
+  const [tab, setTab] = useTab();
+  const [selected, setSelected] = useState<string | null>(null);
+  const month = selected && budgetMonths.includes(selected) ? selected : (budgetMonths[0] ?? "");
+
+  return (
+    <>
+      <PageHeader
+        title="Ngân sách"
+        actions={
+          tab === "limits" &&
+          month && <MonthSelect months={budgetMonths} value={month} onChange={setSelected} />
+        }
+      />
+
+      <div
+        role="tablist"
+        aria-label="Ngân sách"
+        className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-zinc-100 p-1 sm:inline-grid dark:bg-zinc-900"
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.value}
+            onClick={() => setTab(t.value)}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+              tab === t.value
+                ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-100"
+                : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "wallets" ? (
+        <WalletsPanel />
+      ) : (
+        <BudgetLimits month={month} onSelectMonth={setSelected} />
+      )}
+    </>
+  );
+}
+
+/** Monthly spending limits per category. */
+function BudgetLimits({
+  month,
+  onSelectMonth: setSelected,
+}: {
+  month: string;
+  onSelectMonth: (month: string) => void;
+}) {
   const {
     transactions,
     categories,
@@ -70,9 +154,7 @@ export function BudgetsView() {
     createBudgetMonth,
     addCategory,
   } = useExpenses();
-  const [selected, setSelected] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
-  const month = selected && budgetMonths.includes(selected) ? selected : (budgetMonths[0] ?? "");
 
   // Suggest the month after the newest plan (or the newest month with transactions).
   const suggestedMonth = budgetMonths[0]
@@ -99,13 +181,6 @@ export function BudgetsView() {
 
   return (
     <>
-      <PageHeader
-        title="Ngân sách"
-        actions={
-          month && <MonthSelect months={budgetMonths} value={month} onChange={setSelected} />
-        }
-      />
-
       {!month ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
           <span className="text-zinc-400">{Icons.calendarPlus}</span>

@@ -4,7 +4,14 @@
  * built-ins (user_id NULL) plus the user's own.
  */
 import type { PersistedAction, RemoteState } from "../src/lib/actions";
-import type { Budget, Category, Transaction, TransactionType } from "../src/lib/types";
+import type {
+  Budget,
+  Category,
+  Transaction,
+  TransactionType,
+  Wallet,
+  WalletKind,
+} from "../src/lib/types";
 import { HttpError, json, readJson, type D1Database, type D1PreparedStatement } from "./env";
 
 /* ---------------------------------- Reads ----------------------------------- */
@@ -16,15 +23,24 @@ interface TransactionRow {
   category_id: string;
   note: string;
   date: string;
+  wallet_id: string | null;
 }
 interface BudgetRow {
   month: string;
   category_id: string;
   amount_limit: number;
 }
+interface WalletRow {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  kind: WalletKind;
+  opening_balance: number;
+}
 
 export async function getState(db: D1Database, userId: string): Promise<Response> {
-  const [cats, txs, months, budgets] = await db.batch([
+  const [cats, txs, months, budgets, wallets] = await db.batch([
     db
       .prepare(
         `SELECT id, name, icon, color, type FROM categories
@@ -33,12 +49,18 @@ export async function getState(db: D1Database, userId: string): Promise<Response
       .bind(userId),
     db
       .prepare(
-        `SELECT id, type, amount, category_id, note, date FROM transactions
+        `SELECT id, type, amount, category_id, note, date, wallet_id FROM transactions
          WHERE user_id = ? ORDER BY date DESC, created_at DESC`,
       )
       .bind(userId),
     db.prepare("SELECT month FROM user_budget_months WHERE user_id = ? ORDER BY month DESC").bind(userId),
     db.prepare("SELECT month, category_id, amount_limit FROM user_budgets WHERE user_id = ?").bind(userId),
+    db
+      .prepare(
+        `SELECT id, name, icon, color, kind, opening_balance FROM wallets
+         WHERE user_id = ? ORDER BY created_at, rowid`,
+      )
+      .bind(userId),
   ]);
 
   const state: RemoteState = {
@@ -51,11 +73,22 @@ export async function getState(db: D1Database, userId: string): Promise<Response
         categoryId: r.category_id,
         note: r.note,
         date: r.date,
+        walletId: r.wallet_id,
       }),
     ),
     budgetMonths: (months.results as { month: string }[]).map((r) => r.month),
     budgets: (budgets.results as BudgetRow[]).map(
       (r): Budget => ({ month: r.month, categoryId: r.category_id, limit: r.amount_limit }),
+    ),
+    wallets: (wallets.results as WalletRow[]).map(
+      (r): Wallet => ({
+        id: r.id,
+        name: r.name,
+        icon: r.icon,
+        color: r.color,
+        kind: r.kind,
+        openingBalance: r.opening_balance,
+      }),
     ),
   };
   return json(state);
@@ -73,6 +106,10 @@ const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{
 const isType = (v: unknown): v is TransactionType => v === "expense" || v === "income";
 const isAmount = (v: unknown, min: number): v is number =>
   typeof v === "number" && Number.isInteger(v) && v >= min && v <= 1e13;
+const isWalletKind = (v: unknown): v is WalletKind =>
+  v === "bank" || v === "ewallet" || v === "cash" || v === "investment" || v === "other";
+/** Missing (older clients) or null = not linked to a wallet. */
+const isOptionalId = (v: unknown) => v === undefined || v === null || isId(v);
 
 function checkTransactionFields(t: Record<string, unknown>) {
   check(isType(t.type), "Invalid type");
@@ -80,6 +117,21 @@ function checkTransactionFields(t: Record<string, unknown>) {
   check(isId(t.categoryId), "Invalid category");
   check(typeof t.note === "string" && t.note.length <= 120, "Invalid note");
   check(isDate(t.date), "Invalid date");
+  check(isOptionalId(t.walletId), "Invalid wallet");
+}
+
+function checkWalletFields(w: Record<string, unknown>) {
+  check(typeof w.name === "string" && w.name.trim().length > 0 && w.name.length <= 40, "Invalid name");
+  check(typeof w.icon === "string" && w.icon.length > 0 && w.icon.length <= 16, "Invalid icon");
+  check(typeof w.color === "string" && /^#[0-9a-f]{6}$/i.test(w.color), "Invalid color");
+  check(isWalletKind(w.kind), "Invalid kind");
+  // Negative allowed (credit card / overdraft).
+  check(
+    typeof w.openingBalance === "number" &&
+      Number.isInteger(w.openingBalance) &&
+      Math.abs(w.openingBalance) <= 1e13,
+    "Invalid balance",
+  );
 }
 
 /** Validate untrusted JSON and narrow it to a PersistedAction. */
@@ -118,6 +170,21 @@ function parseAction(a: Record<string, unknown>): PersistedAction {
     case "createBudgetMonth":
       check(isMonth(a.month) && (a.copyFrom === null || isMonth(a.copyFrom)), "Invalid month");
       return a as PersistedAction;
+    case "addWallet": {
+      const w = a.wallet as Record<string, unknown> | undefined;
+      check(w && typeof w === "object" && isId(w.id) && w.id.startsWith("wallet-"), "Invalid wallet");
+      checkWalletFields(w);
+      return a as PersistedAction;
+    }
+    case "updateWallet": {
+      const input = a.input as Record<string, unknown> | undefined;
+      check(isId(a.id) && input && typeof input === "object", "Invalid wallet");
+      checkWalletFields(input);
+      return a as PersistedAction;
+    }
+    case "removeWallet":
+      check(isId(a.id), "Invalid id");
+      return a as PersistedAction;
     default:
       throw new HttpError(400, "Unknown action");
   }
@@ -129,29 +196,44 @@ function parseAction(a: Record<string, unknown>): PersistedAction {
 const CATEGORY_ALLOWED =
   "EXISTS (SELECT 1 FROM categories WHERE id = ? AND (user_id IS NULL OR user_id = ?))";
 
+/** SQL condition: wallet `?` is NULL, or wallet `?` belongs to user `?` (bind walletId twice). */
+const WALLET_ALLOWED =
+  "(? IS NULL OR EXISTS (SELECT 1 FROM wallets WHERE id = ? AND user_id = ?))";
+
 /** Turn an action into SQL for one user. Statements run in one D1 batch (= one transaction). */
 function toStatements(db: D1Database, userId: string, action: PersistedAction): D1PreparedStatement[] {
   switch (action.type) {
     case "add": {
       const t = action.transaction;
+      const wallet = t.walletId ?? null;
       return [
         db
           .prepare(
-            `INSERT INTO transactions (id, user_id, type, amount, category_id, note, date)
-             SELECT ?, ?, ?, ?, ?, ?, ? WHERE ${CATEGORY_ALLOWED}`,
+            `INSERT INTO transactions (id, user_id, type, amount, category_id, note, date, wallet_id)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ${CATEGORY_ALLOWED} AND ${WALLET_ALLOWED}`,
           )
-          .bind(t.id, userId, t.type, t.amount, t.categoryId, t.note, t.date, t.categoryId, userId),
+          .bind(
+            t.id, userId, t.type, t.amount, t.categoryId, t.note, t.date, wallet,
+            t.categoryId, userId,
+            wallet, wallet, userId,
+          ),
       ];
     }
     case "update": {
       const i = action.input;
+      const wallet = i.walletId ?? null;
       return [
         db
           .prepare(
-            `UPDATE transactions SET type = ?, amount = ?, category_id = ?, note = ?, date = ?
-             WHERE id = ? AND user_id = ? AND ${CATEGORY_ALLOWED}`,
+            `UPDATE transactions SET type = ?, amount = ?, category_id = ?, note = ?, date = ?, wallet_id = ?
+             WHERE id = ? AND user_id = ? AND ${CATEGORY_ALLOWED} AND ${WALLET_ALLOWED}`,
           )
-          .bind(i.type, i.amount, i.categoryId, i.note, i.date, action.id, userId, i.categoryId, userId),
+          .bind(
+            i.type, i.amount, i.categoryId, i.note, i.date, wallet,
+            action.id, userId,
+            i.categoryId, userId,
+            wallet, wallet, userId,
+          ),
       ];
     }
     case "remove":
@@ -200,6 +282,36 @@ function toStatements(db: D1Database, userId: string, action: PersistedAction): 
       }
       return statements;
     }
+    case "addWallet": {
+      const w = action.wallet;
+      return [
+        db
+          .prepare(
+            `INSERT INTO wallets (id, user_id, name, icon, color, kind, opening_balance)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .bind(w.id, userId, w.name.trim(), w.icon, w.color, w.kind, w.openingBalance),
+      ];
+    }
+    case "updateWallet": {
+      const i = action.input;
+      return [
+        db
+          .prepare(
+            `UPDATE wallets SET name = ?, icon = ?, color = ?, kind = ?, opening_balance = ?
+             WHERE id = ? AND user_id = ?`,
+          )
+          .bind(i.name.trim(), i.icon, i.color, i.kind, i.openingBalance, action.id, userId),
+      ];
+    }
+    case "removeWallet":
+      // Unlink first (foreign key), then delete — same batch, so atomic.
+      return [
+        db
+          .prepare("UPDATE transactions SET wallet_id = NULL WHERE wallet_id = ? AND user_id = ?")
+          .bind(action.id, userId),
+        db.prepare("DELETE FROM wallets WHERE id = ? AND user_id = ?").bind(action.id, userId),
+      ];
   }
 }
 

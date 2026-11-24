@@ -19,7 +19,7 @@ export function TransactionList({
   onDelete,
   emptyText = "Chưa có giao dịch nào.",
 }: TransactionListProps) {
-  const { getCategory } = useExpenses();
+  const { getCategory, getWallet } = useExpenses();
 
   if (transactions.length === 0) return <EmptyState>{emptyText}</EmptyState>;
 
@@ -27,6 +27,7 @@ export function TransactionList({
     <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
       {transactions.map((t) => {
         const category = getCategory(t.categoryId);
+        const wallet = getWallet(t.walletId);
         const isIncome = t.type === "income";
         return (
           <li key={t.id} className="flex items-center gap-3 py-3">
@@ -39,8 +40,9 @@ export function TransactionList({
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{t.note || category?.name}</p>
-              <p className="text-xs text-zinc-500">
-                {category?.name ?? "Không rõ"} · {formatDate(t.date)}
+              <p className="truncate text-xs text-zinc-500">
+                {category?.name ?? "Không rõ"}
+                {wallet && ` · ${wallet.icon} ${wallet.name}`} · {formatDate(t.date)}
               </p>
             </div>
             <p

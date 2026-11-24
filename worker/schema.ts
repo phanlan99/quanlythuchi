@@ -7,6 +7,10 @@
  *   transactions      (user_id = owner)
  *   user_budget_months, user_budgets (per user)
  *
+ * Version 3 (wallets):
+ *   wallets           (bank accounts, e-wallets, cash, investments — per user)
+ *   transactions.wallet_id (NULL = not linked to a wallet)
+ *
  * A database created by the earlier single-user version (v1) is upgraded in
  * place: its existing data is tagged LEGACY_OWNER and handed over to the first
  * account that registers (who also becomes admin).
@@ -15,7 +19,7 @@ import { DEMO_CATEGORIES } from "../src/lib/demo-data";
 import type { D1Database } from "./env";
 
 export const LEGACY_OWNER = "__legacy__";
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const ACCOUNT_TABLES = [
   `CREATE TABLE IF NOT EXISTS users (
@@ -95,9 +99,26 @@ const FROM_V1 = [
   `DROP TABLE budget_months`,
 ];
 
+/** v2 -> v3: wallets / accounts, and which wallet each transaction used. */
+const TO_V3 = [
+  `CREATE TABLE IF NOT EXISTS wallets (
+     id              TEXT PRIMARY KEY,
+     user_id         TEXT NOT NULL,
+     name            TEXT NOT NULL,
+     icon            TEXT NOT NULL,
+     color           TEXT NOT NULL,
+     kind            TEXT NOT NULL CHECK (kind IN ('bank', 'ewallet', 'cash', 'investment', 'other')),
+     opening_balance INTEGER NOT NULL DEFAULT 0,
+     created_at      INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+   )`,
+  `ALTER TABLE transactions ADD COLUMN wallet_id TEXT REFERENCES wallets(id)`,
+];
+
 const INDEXES = [
   `CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)`,
+  `CREATE INDEX IF NOT EXISTS idx_wallets_user ON wallets(user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_transactions_wallet ON transactions(wallet_id)`,
 ];
 
 async function migrate(db: D1Database): Promise<void> {
@@ -105,11 +126,17 @@ async function migrate(db: D1Database): Promise<void> {
   const row = await db
     .prepare("SELECT value FROM meta WHERE key = 'schema_version'")
     .first<{ value: string }>();
-  if (row && Number(row.value) >= SCHEMA_VERSION) return;
+  const version = row ? Number(row.value) : 0;
+  if (version >= SCHEMA_VERSION) return;
 
-  const isV1 = await db
-    .prepare("SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = 'budget_months'")
-    .first();
+  // Below v2: either a brand-new database or the single-user v1 layout.
+  let base: string[] = [];
+  if (version < 2) {
+    const isV1 = await db
+      .prepare("SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = 'budget_months'")
+      .first();
+    base = isV1 ? FROM_V1 : FRESH;
+  }
 
   const seed = DEMO_CATEGORIES.map((c) =>
     db
@@ -121,7 +148,7 @@ async function migrate(db: D1Database): Promise<void> {
 
   // One batch = one transaction: the upgrade either fully applies or not at all.
   await db.batch([
-    ...(isV1 ? FROM_V1 : FRESH).map((sql) => db.prepare(sql)),
+    ...[...base, ...TO_V3].map((sql) => db.prepare(sql)),
     ...INDEXES.map((sql) => db.prepare(sql)),
     ...seed,
     db

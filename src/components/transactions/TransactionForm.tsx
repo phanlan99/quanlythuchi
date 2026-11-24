@@ -1,9 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useExpenses } from "@/context/ExpenseProvider";
-import { hasErrors, validateTransaction, type ValidationErrors } from "@/lib/expense-utils";
-import { todayISO } from "@/lib/format";
+import {
+  getWalletBalances,
+  hasErrors,
+  validateTransaction,
+  type ValidationErrors,
+} from "@/lib/expense-utils";
+import { formatVND, todayISO } from "@/lib/format";
 import type { Transaction, TransactionInput, TransactionType } from "@/lib/types";
 import { inputClass } from "@/components/ui";
 
@@ -18,7 +24,7 @@ interface TransactionFormProps {
  * transaction (see TransactionsView).
  */
 export function TransactionForm({ editing, onDone }: TransactionFormProps) {
-  const { categories, addTransaction, updateTransaction } = useExpenses();
+  const { categories, wallets, transactions, addTransaction, updateTransaction } = useExpenses();
 
   const [type, setType] = useState<TransactionType>(editing?.type ?? "expense");
   const [amount, setAmount] = useState(editing ? String(editing.amount) : "");
@@ -27,9 +33,16 @@ export function TransactionForm({ editing, onDone }: TransactionFormProps) {
   // during render would cause a hydration mismatch. Filled in on submit.
   const [date, setDate] = useState(editing?.date ?? "");
   const [note, setNote] = useState(editing?.note ?? "");
+  // null = untouched: new transactions then default to the first wallet (derived,
+  // so it still works if wallets load after the form mounts). Kept between adds.
+  const [walletChoice, setWalletId] = useState<string | null>(
+    editing ? (editing.walletId ?? "") : null,
+  );
+  const walletId = walletChoice ?? wallets[0]?.id ?? "";
   const [errors, setErrors] = useState<ValidationErrors>({});
 
   const categoryOptions = categories.filter((c) => c.type === type);
+  const walletOptions = getWalletBalances(wallets, transactions);
 
   function changeType(next: TransactionType) {
     setType(next);
@@ -46,8 +59,9 @@ export function TransactionForm({ editing, onDone }: TransactionFormProps) {
       categoryId,
       date: date || todayISO(),
       note: note.trim(),
+      walletId: walletId || null,
     };
-    const validation = validateTransaction(input, categories);
+    const validation = validateTransaction(input, categories, wallets);
     setErrors(validation);
     if (hasErrors(validation)) return;
 
@@ -106,6 +120,29 @@ export function TransactionForm({ editing, onDone }: TransactionFormProps) {
             </option>
           ))}
         </select>
+      </Field>
+
+      <Field label={type === "expense" ? "Trừ từ ví / tài khoản" : "Cộng vào ví / tài khoản"} error={errors.walletId}>
+        <select
+          value={walletId}
+          onChange={(e) => setWalletId(e.target.value)}
+          className={inputClass}
+        >
+          <option value="">Không chọn (không tính vào số dư)</option>
+          {walletOptions.map(({ wallet, balance }) => (
+            <option key={wallet.id} value={wallet.id}>
+              {wallet.icon} {wallet.name} · {formatVND(balance)}
+            </option>
+          ))}
+        </select>
+        {wallets.length === 0 && (
+          <span className="block text-xs text-zinc-500">
+            Chưa có ví nào.{" "}
+            <Link href="/budgets#wallets" className="text-emerald-600 hover:underline">
+              Thêm ví / tài khoản
+            </Link>
+          </span>
+        )}
       </Field>
 
       <Field label="Ngày" error={errors.date}>
