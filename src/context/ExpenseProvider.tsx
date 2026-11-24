@@ -1,7 +1,12 @@
 "use client";
 
 import { createContext, use, useReducer, type ReactNode } from "react";
-import { DEMO_BUDGETS, DEMO_CATEGORIES, DEMO_TRANSACTIONS } from "@/lib/demo-data";
+import {
+  DEMO_BUDGET_MONTHS,
+  DEMO_BUDGETS,
+  DEMO_CATEGORIES,
+  DEMO_TRANSACTIONS,
+} from "@/lib/demo-data";
 import type { Budget, Category, Transaction, TransactionInput } from "@/lib/types";
 
 /**
@@ -16,19 +21,27 @@ import type { Budget, Category, Transaction, TransactionInput } from "@/lib/type
 interface ExpenseState {
   transactions: Transaction[];
   budgets: Budget[];
+  /** Months that have a budget plan (YYYY-MM). Kept separately so a month can exist while still empty. */
+  budgetMonths: string[];
 }
 
 type Action =
   | { type: "add"; transaction: Transaction }
   | { type: "update"; id: string; input: TransactionInput }
   | { type: "remove"; id: string }
-  | { type: "setBudget"; categoryId: string; limit: number }
+  | { type: "setBudget"; month: string; categoryId: string; limit: number }
+  | { type: "removeBudget"; month: string; categoryId: string }
+  | { type: "createBudgetMonth"; month: string; copyFrom: string | null }
   | { type: "reset" };
 
 const initialState: ExpenseState = {
   transactions: DEMO_TRANSACTIONS,
   budgets: DEMO_BUDGETS,
+  budgetMonths: DEMO_BUDGET_MONTHS,
 };
+
+const sameBudget = (b: Budget, month: string, categoryId: string) =>
+  b.month === month && b.categoryId === categoryId;
 
 function reducer(state: ExpenseState, action: Action): ExpenseState {
   switch (action.type) {
@@ -44,14 +57,33 @@ function reducer(state: ExpenseState, action: Action): ExpenseState {
     case "remove":
       return { ...state, transactions: state.transactions.filter((t) => t.id !== action.id) };
     case "setBudget": {
-      const exists = state.budgets.some((b) => b.categoryId === action.categoryId);
+      const { month, categoryId, limit } = action;
+      const exists = state.budgets.some((b) => sameBudget(b, month, categoryId));
       return {
         ...state,
         budgets: exists
-          ? state.budgets.map((b) =>
-              b.categoryId === action.categoryId ? { ...b, limit: action.limit } : b,
-            )
-          : [...state.budgets, { categoryId: action.categoryId, limit: action.limit }],
+          ? state.budgets.map((b) => (sameBudget(b, month, categoryId) ? { ...b, limit } : b))
+          : [...state.budgets, { month, categoryId, limit }],
+        budgetMonths: state.budgetMonths.includes(month)
+          ? state.budgetMonths
+          : [...state.budgetMonths, month],
+      };
+    }
+    case "removeBudget":
+      return {
+        ...state,
+        budgets: state.budgets.filter((b) => !sameBudget(b, action.month, action.categoryId)),
+      };
+    case "createBudgetMonth": {
+      const { month, copyFrom } = action;
+      if (state.budgetMonths.includes(month)) return state;
+      const copied = copyFrom
+        ? state.budgets.filter((b) => b.month === copyFrom).map((b) => ({ ...b, month }))
+        : [];
+      return {
+        ...state,
+        budgets: [...state.budgets, ...copied],
+        budgetMonths: [...state.budgetMonths, month],
       };
     }
     case "reset":
@@ -65,7 +97,10 @@ interface ExpenseContextValue extends ExpenseState {
   addTransaction: (input: TransactionInput) => void;
   updateTransaction: (id: string, input: TransactionInput) => void;
   removeTransaction: (id: string) => void;
-  setBudget: (categoryId: string, limit: number) => void;
+  setBudget: (month: string, categoryId: string, limit: number) => void;
+  removeBudget: (month: string, categoryId: string) => void;
+  /** Create a budget plan for `month`, optionally copying limits from another month. No-op if it exists. */
+  createBudgetMonth: (month: string, copyFrom: string | null) => void;
   resetDemo: () => void;
 }
 
@@ -84,12 +119,18 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
 
   const value: ExpenseContextValue = {
     ...state,
+    // Newest first, for selects.
+    budgetMonths: [...state.budgetMonths].sort((a, b) => b.localeCompare(a)),
     categories: DEMO_CATEGORIES,
     getCategory: (id) => DEMO_CATEGORIES.find((c) => c.id === id),
     addTransaction: (input) => dispatch({ type: "add", transaction: { ...input, id: createId() } }),
     updateTransaction: (id, input) => dispatch({ type: "update", id, input }),
     removeTransaction: (id) => dispatch({ type: "remove", id }),
-    setBudget: (categoryId, limit) => dispatch({ type: "setBudget", categoryId, limit }),
+    setBudget: (month, categoryId, limit) =>
+      dispatch({ type: "setBudget", month, categoryId, limit }),
+    removeBudget: (month, categoryId) => dispatch({ type: "removeBudget", month, categoryId }),
+    createBudgetMonth: (month, copyFrom) =>
+      dispatch({ type: "createBudgetMonth", month, copyFrom }),
     resetDemo: () => dispatch({ type: "reset" }),
   };
 

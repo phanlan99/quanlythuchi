@@ -21,7 +21,7 @@ export const DEMO_CATEGORIES: Category[] = [
   { id: "other-income", name: "Thu nhập khác", icon: "💵", color: "#84cc16", type: "income" },
 ];
 
-export const DEMO_BUDGETS: Budget[] = [
+const BASE_LIMITS: Omit<Budget, "month">[] = [
   { categoryId: "food", limit: 4_000_000 },
   { categoryId: "transport", limit: 1_000_000 },
   { categoryId: "housing", limit: 5_000_000 },
@@ -31,6 +31,12 @@ export const DEMO_BUDGETS: Budget[] = [
   { categoryId: "health", limit: 500_000 },
   { categoryId: "education", limit: 1_000_000 },
 ];
+
+export const DEMO_BUDGET_MONTHS = ["2026-10", "2026-11"];
+
+export const DEMO_BUDGETS: Budget[] = DEMO_BUDGET_MONTHS.flatMap((month) =>
+  BASE_LIMITS.map((b) => ({ ...b, month })),
+);
 
 export const DEMO_TRANSACTIONS: Transaction[] = [
   // ---- November 2026 ----

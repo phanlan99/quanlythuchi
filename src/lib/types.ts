@@ -23,8 +23,10 @@ export interface Transaction {
 /** Input used by forms when creating / editing a transaction. */
 export type TransactionInput = Omit<Transaction, "id">;
 
-/** Monthly spending limit for one expense category. */
+/** Spending limit for one expense category in one month. */
 export interface Budget {
+  /** YYYY-MM */
+  month: string;
   categoryId: string;
   limit: number;
 }

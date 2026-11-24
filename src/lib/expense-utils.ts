@@ -18,6 +18,12 @@ export function getAvailableMonths(transactions: Transaction[]): string[] {
   return [...months].sort((a, b) => b.localeCompare(a));
 }
 
+/** "2026-11" -> "2026-12", "2026-12" -> "2027-01" */
+export function nextMonthKey(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
 export function sortByDateDesc(transactions: Transaction[]): Transaction[] {
   return [...transactions].sort(
     (a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id),
@@ -161,6 +167,7 @@ export function getBudgetUsage(
   }
 
   return budgets.flatMap((b) => {
+    if (b.month !== month) return [];
     const category = categories.find((c) => c.id === b.categoryId);
     if (!category) return [];
     const spent = spentByCategory.get(b.categoryId) ?? 0;

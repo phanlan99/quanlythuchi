@@ -41,12 +41,6 @@ export const Icons = {
       <path d="M12 3v9l6.5 6.2" />
     </svg>
   ),
-  home: (
-    <svg {...iconProps}>
-      <path d="M3 11l9-7 9 7" />
-      <path d="M5 10v10h14V10" />
-    </svg>
-  ),
   menu: (
     <svg {...iconProps}>
       <path d="M4 6h16M4 12h16M4 18h16" />
@@ -55,6 +49,14 @@ export const Icons = {
   close: (
     <svg {...iconProps}>
       <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  ),
+  /** Calendar with a plus — "new monthly budget". Distinct from the plain `plus`. */
+  calendarPlus: (
+    <svg {...iconProps}>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+      <path d="M12 13v5M9.5 15.5h5" />
     </svg>
   ),
   plus: (
