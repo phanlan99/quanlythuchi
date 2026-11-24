@@ -6,6 +6,7 @@ import { useId, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useOverlay } from "@/hooks/use-overlay";
 import { Icons } from "@/components/sidebar/nav-config";
+import { openAuthDialog } from "@/components/auth/auth-dialog-store";
 import { searchSite, type SearchItem } from "./content";
 
 /**
@@ -26,7 +27,8 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
 
   function go(item: SearchItem) {
     onClose();
-    router.push(item.href);
+    if (item.auth) openAuthDialog(item.auth);
+    else router.push(item.href);
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -82,7 +84,10 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
               <li key={`${item.href}-${item.title}`} id={`${listId}-${i}`} role="option" aria-selected={i === current}>
                 <Link
                   href={item.href}
-                  onClick={onClose}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    go(item);
+                  }}
                   onMouseEnter={() => setActive(i)}
                   className={`flex items-start gap-3 rounded-lg px-3 py-2.5 ${
                     i === current ? "bg-zinc-100 dark:bg-zinc-800" : ""

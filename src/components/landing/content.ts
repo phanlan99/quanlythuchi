@@ -71,6 +71,8 @@ export interface SearchItem {
   description: string;
   href: string;
   group: "Trang" | "Tính năng" | "Câu hỏi";
+  /** Opens this form in the auth dialog instead of navigating. */
+  auth?: "login" | "register" | "forgot";
 }
 
 export const SEARCH_ITEMS: SearchItem[] = [
@@ -78,9 +80,15 @@ export const SEARCH_ITEMS: SearchItem[] = [
   { group: "Trang", title: "Giao dịch", description: "Thêm, sửa, lọc các khoản thu chi", href: "/transactions" },
   { group: "Trang", title: "Ngân sách", description: "Hạn mức chi tiêu theo tháng", href: "/budgets" },
   { group: "Trang", title: "Tài khoản", description: "Thông tin cá nhân và đổi mật khẩu", href: "/account" },
-  { group: "Trang", title: "Đăng nhập", description: "Vào tài khoản của bạn", href: "/login" },
-  { group: "Trang", title: "Đăng ký", description: "Tạo tài khoản mới", href: "/register" },
-  { group: "Trang", title: "Quên mật khẩu", description: "Yêu cầu cấp mật khẩu tạm", href: "/forgot-password" },
+  { group: "Trang", title: "Đăng nhập", description: "Vào tài khoản của bạn", href: "/#login", auth: "login" },
+  { group: "Trang", title: "Đăng ký", description: "Tạo tài khoản mới", href: "/#register", auth: "register" },
+  {
+    group: "Trang",
+    title: "Quên mật khẩu",
+    description: "Yêu cầu cấp mật khẩu tạm",
+    href: "/#forgot-password",
+    auth: "forgot",
+  },
   ...FEATURES.map((f) => ({
     group: "Tính năng" as const,
     title: f.title,

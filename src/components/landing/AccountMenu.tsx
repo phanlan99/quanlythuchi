@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useAuth } from "@/context/AuthProvider";
 import { ADMIN_NAV_ITEM, DEFAULT_NAV_ITEMS, Icons } from "@/components/sidebar/nav-config";
+import { openAuthDialog } from "@/components/auth/auth-dialog-store";
 
 const pill =
   "flex h-9 items-center gap-2 rounded-full px-3 text-sm font-medium transition-colors";
@@ -56,14 +57,16 @@ export function AccountMenu() {
 
   if (status !== "authenticated" || !user) {
     return (
-      <Link
-        href="/login"
+      <button
+        type="button"
+        onClick={() => openAuthDialog("login")}
         aria-label="Đăng nhập"
+        aria-haspopup="dialog"
         className={`${pill} text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800`}
       >
         {Icons.login}
         <span className="hidden sm:inline">Đăng nhập</span>
-      </Link>
+      </button>
     );
   }
 

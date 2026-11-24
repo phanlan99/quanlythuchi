@@ -1,5 +1,13 @@
 import Link from "next/link";
+import type { AuthView } from "@/components/auth/auth-dialog-store";
 import { SECTION_LINKS } from "./content";
+import { AuthLinkButton } from "./HeroActions";
+
+const AUTH_LINKS: { view: AuthView; label: string }[] = [
+  { view: "login", label: "Đăng nhập" },
+  { view: "register", label: "Đăng ký" },
+  { view: "forgot", label: "Quên mật khẩu" },
+];
 
 const COLUMNS = [
   { title: "Giới thiệu", links: SECTION_LINKS },
@@ -9,14 +17,6 @@ const COLUMNS = [
       { href: "/dashboard", label: "Tổng quan" },
       { href: "/transactions", label: "Giao dịch" },
       { href: "/budgets", label: "Ngân sách" },
-    ],
-  },
-  {
-    title: "Tài khoản",
-    links: [
-      { href: "/login", label: "Đăng nhập" },
-      { href: "/register", label: "Đăng ký" },
-      { href: "/forgot-password", label: "Quên mật khẩu" },
     ],
   },
 ];
@@ -50,6 +50,17 @@ export function LandingFooter() {
             </ul>
           </nav>
         ))}
+
+        <nav aria-label="Tài khoản">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">Tài khoản</h2>
+          <ul className="space-y-2">
+            {AUTH_LINKS.map((link) => (
+              <li key={link.view}>
+                <AuthLinkButton view={link.view}>{link.label}</AuthLinkButton>
+              </li>
+            ))}
+          </ul>
+        </nav>
       </div>
       <div className="border-t border-zinc-200 py-5 text-center text-xs text-zinc-400 dark:border-zinc-800">
         © 2026 Quản lý chi tiêu

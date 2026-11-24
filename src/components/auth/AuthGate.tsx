@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { useAuth } from "@/context/AuthProvider";
+import { openAuthDialog } from "./auth-dialog-store";
 
 export interface AuthGateOptions {
   /** Only admins may see this page (others go to the dashboard). */
@@ -21,15 +22,17 @@ export function AuthGate({ children, adminOnly, allowPasswordChange }: AuthGateO
   const router = useRouter();
 
   let redirect: string | null = null;
-  if (status === "anonymous") redirect = "/login";
+  if (status === "anonymous") redirect = "/"; // landing page, with the login dialog open
   else if (status === "authenticated" && user) {
     if (user.mustChangePassword && !allowPasswordChange) redirect = "/account";
     else if (adminOnly && user.role !== "admin") redirect = "/dashboard";
   }
 
   useEffect(() => {
-    if (redirect) router.replace(redirect);
-  }, [redirect, router]);
+    if (!redirect) return;
+    if (status === "anonymous") openAuthDialog("login");
+    router.replace(redirect);
+  }, [redirect, status, router]);
 
   if (status === "loading" || redirect) return <FullPageSpinner />;
   return children;

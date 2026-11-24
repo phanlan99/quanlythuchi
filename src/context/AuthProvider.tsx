@@ -18,8 +18,9 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (username: string, password: string) => Promise<void>;
-  register: (input: RegisterInput) => Promise<void>;
+  /** Resolves with the signed-in user (e.g. to route by `mustChangePassword`). */
+  login: (username: string, password: string) => Promise<PublicUser>;
+  register: (input: RegisterInput) => Promise<PublicUser>;
   logout: () => Promise<void>;
   /** Replace the current user after a profile/password change. */
   setUser: (user: PublicUser) => void;
@@ -48,7 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signedIn = (user: PublicUser) => setState({ status: "authenticated", user });
+  const signedIn = (user: PublicUser) => {
+    setState({ status: "authenticated", user });
+    return user;
+  };
 
   const value: AuthContextValue = {
     ...state,

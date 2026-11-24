@@ -1,3 +1,4 @@
+import { AuthDialog } from "@/components/auth/AuthDialog";
 import { FAQS, FEATURES, STEPS } from "./content";
 import { HeroActions } from "./HeroActions";
 import { LandingFooter } from "./LandingFooter";
@@ -100,6 +101,9 @@ export function LandingPage() {
       </main>
 
       <LandingFooter />
+
+      {/* Login / register / forgot password open here, over the page. */}
+      <AuthDialog />
     </div>
   );
 }

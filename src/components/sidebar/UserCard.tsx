@@ -21,7 +21,7 @@ export function UserCard({ compact = false, onNavigate }: { compact?: boolean; o
 
   async function handleLogout() {
     await logout();
-    router.replace("/login");
+    router.replace("/");
   }
 
   if (compact) {

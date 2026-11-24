@@ -1,74 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, type InputHTMLAttributes, type ReactNode } from "react";
-import { useAuth } from "@/context/AuthProvider";
+import type { InputHTMLAttributes, ReactNode } from "react";
 import { inputClass } from "@/components/ui";
-import { FullPageSpinner } from "./AuthGate";
 
-/**
- * Centered card for the signed-out pages (login, register, forgot password).
- * Signed-in visitors are sent on to the app.
+/*
+ * Shared form building blocks for the auth dialog, Account and Admin pages.
+ * (The auth forms themselves now open in a dialog on the landing page — see AuthDialog.tsx.)
  */
-export function AuthShell({
-  title,
-  subtitle,
-  children,
-  footer,
-}: {
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-  footer?: ReactNode;
-}) {
-  const { status, user } = useAuth();
-  const router = useRouter();
-  const target =
-    status === "authenticated" && user ? (user.mustChangePassword ? "/account" : "/dashboard") : null;
-
-  useEffect(() => {
-    if (target) router.replace(target);
-  }, [target, router]);
-
-  if (status === "loading" || target) return <FullPageSpinner />;
-
-  return (
-    <main className="flex min-h-screen flex-1 items-center justify-center bg-zinc-50 px-4 py-10 dark:bg-black">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <Link
-            href="/"
-            aria-label="Trang giới thiệu"
-            className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-xl text-white"
-          >
-            ₫
-          </Link>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-            {subtitle && <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>}
-          </div>
-        </div>
-
-        {status === "demo" ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
-            Đăng nhập cần API trên Cloudflare. Chạy <code>npm run cf:dev</code> để thử, hoặc{" "}
-            <Link href="/dashboard" className="font-medium underline">
-              xem bản demo
-            </Link>
-            .
-          </div>
-        ) : (
-          <div className="rounded-xl border border-zinc-200/80 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            {children}
-          </div>
-        )}
-
-        {footer && <div className="mt-4 text-center text-sm text-zinc-500">{footer}</div>}
-      </div>
-    </main>
-  );
-}
 
 /** Labeled input with an optional inline error. */
 export function Field({
@@ -113,6 +51,15 @@ export function SubmitButton({ pending, children }: { pending: boolean; children
       className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
     >
       {pending ? "Đang xử lý…" : children}
+    </button>
+  );
+}
+
+/** Small inline text button, e.g. "Đăng ký" / "Quên mật khẩu?" inside the dialog. */
+export function TextButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className="font-medium text-emerald-600 hover:underline">
+      {children}
     </button>
   );
 }
