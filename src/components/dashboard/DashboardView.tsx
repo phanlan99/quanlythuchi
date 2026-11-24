@@ -24,6 +24,7 @@ import {
 } from "@/components/ui";
 import { TransactionList } from "@/components/transactions/TransactionList";
 import { DailyChart } from "./DailyChart";
+import { MonthCalendar } from "./MonthCalendar";
 
 export function DashboardView() {
   const { transactions, categories, budgets, wallets } = useExpenses();
@@ -75,7 +76,11 @@ export function DashboardView() {
         </Link>
       )}
 
-      <Card title="Thu chi theo ngày" className="mt-1">
+      <Card title="Lịch thu chi" className="mt-1">
+        <MonthCalendar month={month} />
+      </Card>
+
+      <Card title="Thu chi theo ngày" className="mt-6">
         <DailyChart transactions={transactions} month={month} />
       </Card>
 

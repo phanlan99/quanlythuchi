@@ -18,6 +18,8 @@ interface TransactionFormProps {
   editing?: Transaction | null;
   /** Wallet preselected for a NEW transaction (e.g. when adding from a wallet's history). */
   defaultWalletId?: string;
+  /** Date (YYYY-MM-DD) preselected for a NEW transaction (e.g. a day picked in the calendar). */
+  defaultDate?: string;
   onDone?: () => void;
 }
 
@@ -25,7 +27,12 @@ interface TransactionFormProps {
  * Create / edit form. Remount it with a different `key` to load another
  * transaction (see TransactionsView).
  */
-export function TransactionForm({ editing, defaultWalletId, onDone }: TransactionFormProps) {
+export function TransactionForm({
+  editing,
+  defaultWalletId,
+  defaultDate,
+  onDone,
+}: TransactionFormProps) {
   const { categories, wallets, transactions, addTransaction, updateTransaction } = useExpenses();
 
   const [type, setType] = useState<TransactionType>(editing?.type ?? "expense");
@@ -33,7 +40,7 @@ export function TransactionForm({ editing, defaultWalletId, onDone }: Transactio
   const [categoryId, setCategoryId] = useState(editing?.categoryId ?? "");
   // Empty by default: pages are statically prerendered, so computing "today"
   // during render would cause a hydration mismatch. Filled in on submit.
-  const [date, setDate] = useState(editing?.date ?? "");
+  const [date, setDate] = useState(editing?.date ?? defaultDate ?? "");
   const [note, setNote] = useState(editing?.note ?? "");
   // null = untouched: new transactions then default to the first wallet (derived,
   // so it still works if wallets load after the form mounts). Kept between adds.

@@ -25,6 +25,22 @@ export function formatDate(isoDate: string): string {
   return `${d}/${m}/${y}`;
 }
 
+const WEEKDAY_NAMES = ["Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
+
+/**
+ * Day of week, Monday-first (0 = Monday … 6 = Sunday), as on Vietnamese calendars.
+ * Built from numeric parts, so it's the same on server and client in any timezone.
+ */
+export function weekdayIndex(isoDate: string): number {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return (new Date(y, m - 1, d).getDay() + 6) % 7;
+}
+
+/** "2026-11-24" -> "Thứ Ba, 24/11/2026" */
+export function formatLongDate(isoDate: string): string {
+  return `${WEEKDAY_NAMES[(weekdayIndex(isoDate) + 1) % 7]}, ${formatDate(isoDate)}`;
+}
+
 /** "2026-11" -> "Tháng 11/2026" */
 export function formatMonth(monthKey: string): string {
   const [y, m] = monthKey.split("-");

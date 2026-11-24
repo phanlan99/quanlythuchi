@@ -10,15 +10,22 @@ interface TransactionDialogProps {
   editing?: Transaction | null;
   /** Wallet preselected for a new transaction. */
   defaultWalletId?: string;
+  /** Date (YYYY-MM-DD) preselected for a new transaction. */
+  defaultDate?: string;
   onClose: () => void;
 }
 
 /**
  * Add / edit a transaction in a modal (bottom sheet on phones).
- * Used outside the Transactions page, e.g. from a wallet's history.
+ * Used outside the Transactions page, e.g. from a wallet's history or the calendar.
  * Mount only while open — the form starts fresh each time.
  */
-export function TransactionDialog({ editing, defaultWalletId, onClose }: TransactionDialogProps) {
+export function TransactionDialog({
+  editing,
+  defaultWalletId,
+  defaultDate,
+  onClose,
+}: TransactionDialogProps) {
   useOverlay(true, onClose);
   const title = editing ? "Sửa giao dịch" : "Thêm giao dịch";
 
@@ -42,7 +49,12 @@ export function TransactionDialog({ editing, defaultWalletId, onClose }: Transac
             {Icons.close}
           </button>
         </div>
-        <TransactionForm editing={editing} defaultWalletId={defaultWalletId} onDone={onClose} />
+        <TransactionForm
+          editing={editing}
+          defaultWalletId={defaultWalletId}
+          defaultDate={defaultDate}
+          onDone={onClose}
+        />
       </div>
     </div>
   );
